@@ -47,6 +47,12 @@ describe('Header', () => {
             expect(screen.getByText('life-log')).toBeInTheDocument();
         });
 
+        it('ヘッダータイトルから初期画面へ遷移できる', () => {
+            renderWithProvider();
+
+            expect(screen.getByRole('link', {name: 'life-log'})).toHaveAttribute('href', '/');
+        });
+
         it('ヘッダーのHTML構造が正しい', () => {
             renderWithProvider();
 
