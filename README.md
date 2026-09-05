@@ -124,8 +124,10 @@ pnpm start
 │       ├── globals.css      # グローバルスタイル
 │       ├── layout.tsx       # アプリケーションレイアウト
 │       ├── map/
-│       │   └── page.tsx     # 地図表示画面
-│       └── page.tsx         # メインページコンポーネント
+│       │   └── page.tsx     # 地図表示画面（互換用）
+│       ├── logs/
+│       │   └── page.tsx     # 記録一覧画面
+│       └── page.tsx         # 初期画面（地図）
 ├── data/                    # SQLiteデータベースファイル（自動生成）
 ├── package.json
 ├── next.config.ts

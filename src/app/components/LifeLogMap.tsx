@@ -62,7 +62,7 @@ export default function LifeLogMap() {
                 <FitToItems items={items}/>
                 {items.map((item) => <Marker key={item.id} position={[item.location.latitude, item.location.longitude]}><Popup><div className="max-w-60"><time className="text-xs text-gray-500">{new Date(item.occurredAt).toLocaleString('ja-JP')}</time><p className="mt-1">{item.bodyPreview}</p>{item.tags.length > 0 && <p className="mt-1 text-xs text-blue-600">{item.tags.map((tag) => `#${tag.name}`).join(' ')}</p>}</div></Popup></Marker>)}
             </MapContainer>
-            {items.length === 0 && <div className="absolute left-1/2 top-4 z-[1000] -translate-x-1/2 rounded bg-white/95 p-4 text-center shadow dark:bg-gray-800/95"><p>位置情報付きの記録はまだありません。</p><Link href="/" className="mt-2 inline-block text-blue-600 underline">記録画面で位置情報を追加する</Link></div>}
+            {items.length === 0 && <div className="absolute left-1/2 top-4 z-[1000] -translate-x-1/2 rounded bg-white/95 p-4 text-center shadow dark:bg-gray-800/95"><p>位置情報付きの記録はまだありません。</p><Link href="/logs" className="mt-2 inline-block text-blue-600 underline">記録画面で位置情報を追加する</Link></div>}
             {truncated && <p className="absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2 rounded bg-white/95 px-3 py-2 text-sm shadow dark:bg-gray-800/95">表示できる記録は最大100件です。</p>}
         </div>
     );
