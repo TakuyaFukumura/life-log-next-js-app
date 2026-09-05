@@ -53,6 +53,14 @@ describe('Header', () => {
             expect(screen.getByRole('link', {name: 'life-log'})).toHaveAttribute('href', '/');
         });
 
+        it('地図リンクがタイトルの左側グループに表示される', () => {
+            renderWithProvider();
+
+            const links = screen.getAllByRole('link');
+            expect(links.map((link) => link.textContent)).toEqual(['life-log', '地図']);
+            expect(screen.getByRole('link', {name: '地図'})).toHaveAttribute('href', '/map');
+        });
+
         it('ヘッダーのHTML構造が正しい', () => {
             renderWithProvider();
 

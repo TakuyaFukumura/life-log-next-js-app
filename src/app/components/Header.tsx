@@ -38,10 +38,10 @@ export default function Header() {
                         <Link href="/" className="text-xl font-semibold text-gray-800 dark:text-gray-200">
                             <h1>life-log</h1>
                         </Link>
+                        <Link href="/map" className="ml-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">地図</Link>
                     </div>
 
                     <div className="flex items-center">
-                        <Link href="/map" className="mr-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">地図</Link>
                         <button
                             onClick={handleThemeToggle}
                             className="flex items-center gap-2 px-3 py-2 text-sm font-medium
