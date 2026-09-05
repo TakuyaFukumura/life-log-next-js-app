@@ -19,7 +19,7 @@ describe('Home', () => {
         fireEvent.click(screen.getByRole('button', {name: '記録する'}));
         expect(screen.getByRole('dialog')).toBeInTheDocument();
         expect(screen.getByLabelText('本文')).toHaveClass('dark:text-gray-100');
-        expect(screen.getByLabelText('日時')).toHaveClass('dark:text-gray-100');
+        expect(screen.getByLabelText('日時')).toHaveClass('dark:text-gray-100', 'dark:[color-scheme:dark]');
         expect(screen.getByLabelText('タグ（カンマ区切り）')).toHaveClass('dark:text-gray-100');
     });
 
