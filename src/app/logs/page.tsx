@@ -5,7 +5,8 @@ import type {ApiLifeLog, LifeLogLocationInput} from '../../domain/lifelog';
 import LocationPicker from '../components/LocationPicker';
 
 type Pagination = { page: number; pageSize: number; totalItems: number; totalPages: number };
-type FormState = { body: string; occurredAt: string; newTagNames: string; location: LifeLogLocationInput };
+type AvailableTag = { id: string; name: string };
+type FormState = { body: string; occurredAt: string; tagIds: string[]; location: LifeLogLocationInput };
 
 const localDateTime = () => {
     const date = new Date();
@@ -19,9 +20,11 @@ export default function Home() {
     const [form, setForm] = useState<FormState>({
         body: '',
         occurredAt: localDateTime(),
-        newTagNames: '',
+        tagIds: [],
         location: null
     });
+    const [availableTags, setAvailableTags] = useState<AvailableTag[]>([]);
+    const [tagToAdd, setTagToAdd] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -54,9 +57,20 @@ export default function Home() {
         void fetchItems();
     }, [fetchItems]);
 
+    useEffect(() => {
+        fetch('/api/tags')
+            .then(async (response) => {
+                const data = await response.json() as { items?: AvailableTag[]; error?: { message: string } };
+                if (!response.ok) throw new Error(data.error?.message ?? 'タグの取得に失敗しました');
+                setAvailableTags(data.items ?? []);
+            })
+            .catch((reason) => setError(reason instanceof Error ? reason.message : 'タグの取得に失敗しました'));
+    }, []);
+
     const openCreate = () => {
         setEditingId(null);
-        setForm({body: '', occurredAt: localDateTime(), newTagNames: '', location: null});
+        setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
+        setTagToAdd('');
         setIsModalOpen(true);
     };
 
@@ -66,9 +80,10 @@ export default function Home() {
         setForm({
             body: item.body,
             occurredAt: item.occurredAt.slice(0, 16),
-            newTagNames: item.tags.map((tag) => tag.name).join(', '),
+            tagIds: item.tags.map((tag) => tag.id),
             location: item.location
         });
+        setTagToAdd('');
     };
 
     const submit = async (event: FormEvent) => {
@@ -80,7 +95,7 @@ export default function Home() {
             body: JSON.stringify({
                 body: form.body,
                 occurredAt: new Date(form.occurredAt).toISOString(),
-                newTagNames: form.newTagNames.split(',').map((name) => name.trim()).filter(Boolean),
+                tagIds: form.tagIds,
                 location: form.location
             }),
         });
@@ -92,7 +107,8 @@ export default function Home() {
         setNotice(editingId ? '記録を更新しました' : '記録を登録しました');
         setIsModalOpen(false);
         setEditingId(null);
-        setForm({body: '', occurredAt: localDateTime(), newTagNames: '', location: null});
+        setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
+        setTagToAdd('');
         await fetchItems(pagination.page);
     };
 
@@ -166,12 +182,28 @@ export default function Home() {
                                                           occurredAt: event.target.value
                                                       })}
                                                       className="mt-1 w-full rounded border p-2 text-black dark:text-gray-100 dark:[color-scheme:dark]"/></label><label
-                    className="mt-4 block">タグ（カンマ区切り）<input value={form.newTagNames}
-                                                                    onChange={(event) => setForm({
-                                                                        ...form,
-                                                                        newTagNames: event.target.value
-                                                                    })}
-                                                                    className="mt-1 w-full rounded border p-2 text-black dark:text-gray-100"/></label><LocationPicker
+                    className="mt-4 block">タグ<div className="mt-1 flex gap-2"><select aria-label="タグ"
+                                                                                         value={tagToAdd}
+                                                                                         onChange={(event) => setTagToAdd(event.target.value)}
+                                                                                         className="w-full rounded border p-2 text-black dark:bg-gray-800 dark:text-gray-100 dark:[color-scheme:dark]">
+                        <option value="">タグを選択</option>
+                        {availableTags.filter((tag) => !form.tagIds.includes(tag.id)).map((tag) => <option key={tag.id}
+                                                                                                             value={tag.id}>{tag.name}</option>)}
+                    </select><button type="button" disabled={!tagToAdd} onClick={() => {
+                        setForm({...form, tagIds: [...form.tagIds, tagToAdd]});
+                        setTagToAdd('');
+                    }} className="shrink-0 rounded border px-3 py-2 disabled:opacity-50">追加</button></div>
+                    {form.tagIds.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
+                        {form.tagIds.map((tagId) => {
+                            const tag = availableTags.find((availableTag) => availableTag.id === tagId);
+                            return tag ? <span key={tag.id} className="rounded bg-blue-100 px-2 py-1 text-sm text-blue-800">
+                                {tag.name}<button type="button" aria-label={`${tag.name}を外す`} onClick={() => setForm({
+                                    ...form,
+                                    tagIds: form.tagIds.filter((id) => id !== tag.id)
+                                })} className="ml-2 font-bold">×</button>
+                            </span> : null;
+                        })}
+                    </div>}</label><LocationPicker
                     location={form.location} onChange={(location) => setForm({...form, location})}/>
                     <div className="mt-6 flex justify-end gap-3">
                         <button type="button" onClick={() => setIsModalOpen(false)}

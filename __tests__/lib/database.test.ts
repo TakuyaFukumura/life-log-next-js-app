@@ -94,6 +94,14 @@ describe('Database Functions', () => {
             expect(message.content).toBe('Hello, world.');
         });
 
+        it('CSVからタグの初期データを挿入する', async () => {
+            const {getDatabase} = await import('../../lib/database');
+            const db = getDatabase();
+
+            const tags = db.prepare('SELECT name FROM tags ORDER BY name').all() as { name: string }[];
+            expect(tags.map((tag) => tag.name)).toEqual(expect.arrayContaining(['居住地', '仕事', '学習', '健康', '旅行']));
+        });
+
         it('既存のデータベース接続を再利用する', async () => {
             const {getDatabase} = await import('../../lib/database');
             const db1 = getDatabase();

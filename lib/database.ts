@@ -2,6 +2,28 @@ import Database from 'better-sqlite3';
 import {join} from 'path';
 import fs from 'fs';
 
+type TagSeedRow = { name: string };
+
+function seedTagsFromCsv(database: Database.Database) {
+    const csvPath = join(process.cwd(), 'config', 'tags.csv');
+    const contents = fs.readFileSync(csvPath, 'utf8');
+    const lines = contents.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (lines[0] !== 'name') throw new Error('タグCSVのヘッダーは name である必要があります');
+
+    const insert = database.prepare(`
+        INSERT INTO tags (id, name, created_at, updated_at)
+        VALUES (lower(hex(randomblob(16))), ?, ?, ?)
+    `);
+    const find = database.prepare('SELECT id FROM tags WHERE name = ? COLLATE NOCASE');
+    const now = new Date().toISOString();
+    const seed = database.transaction((rows: TagSeedRow[]) => {
+        for (const row of rows) {
+            if (!find.get(row.name)) insert.run(row.name, now, now);
+        }
+    });
+    seed(lines.slice(1).map((name) => ({name})));
+}
+
 // データベースファイルのパス
 const dbPath = join(process.cwd(), 'data', 'app.db');
 
@@ -77,6 +99,7 @@ export function getDatabase(): Database.Database {
         if (count.count === 0) {
             db.prepare('INSERT INTO messages (content) VALUES (?)').run('Hello, world.');
         }
+        seedTagsFromCsv(db);
     }
 
     return db;
