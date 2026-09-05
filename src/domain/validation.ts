@@ -1,10 +1,11 @@
-import type {CreateLifeLogInput, UpdateLifeLogInput} from './lifelog';
+import type {CreateLifeLogInput, LifeLogLocationInput, UpdateLifeLogInput} from './lifelog';
 
 export type ValidationResult = {
     body?: string;
     occurredAt?: string;
     tagIds?: string;
     newTagNames?: string;
+    location?: string;
 };
 
 export function validateBody(body: unknown): string | undefined {
@@ -19,6 +20,26 @@ export function normalizeOccurredAt(value: unknown): string {
         throw new ValidationError('INVALID_OCCURRED_AT', '日時の形式が不正です', {occurredAt: '有効な日時を入力してください'});
     }
     return new Date(value).toISOString();
+}
+
+function validateLocation(location: unknown): string | undefined {
+    if (location === null) return undefined;
+    if (typeof location !== 'object' || location === null) return '位置情報の形式が不正です';
+    const value = location as Partial<Exclude<LifeLogLocationInput, null>>;
+    if (typeof value.latitude !== 'number' || !Number.isFinite(value.latitude) || value.latitude < -90 || value.latitude > 90) {
+        return '緯度の値が不正です';
+    }
+    if (typeof value.longitude !== 'number' || !Number.isFinite(value.longitude) || value.longitude < -180 || value.longitude > 180) {
+        return '経度の値が不正です';
+    }
+    if (value.accuracyMeters !== undefined && value.accuracyMeters !== null &&
+        (typeof value.accuracyMeters !== 'number' || !Number.isFinite(value.accuracyMeters) || value.accuracyMeters <= 0)) {
+        return '位置情報の精度が不正です';
+    }
+    if (typeof value.capturedAt !== 'string' || Number.isNaN(Date.parse(value.capturedAt))) {
+        return '位置情報の取得日時が不正です';
+    }
+    return undefined;
 }
 
 export function validateLifeLogInput(input: CreateLifeLogInput | UpdateLifeLogInput, partial = false): ValidationResult {
@@ -36,6 +57,7 @@ export function validateLifeLogInput(input: CreateLifeLogInput | UpdateLifeLogIn
     if (input.newTagNames !== undefined && (!Array.isArray(input.newTagNames) || input.newTagNames.some((name) => typeof name !== 'string'))) {
         errors.newTagNames = 'タグ名の形式が不正です';
     }
+    if ('location' in input && input.location !== undefined) errors.location = validateLocation(input.location);
     return Object.fromEntries(Object.entries(errors).filter(([, value]) => value !== undefined));
 }
 

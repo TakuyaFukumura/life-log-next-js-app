@@ -5,6 +5,13 @@
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
 このプロジェクトは [Semantic Versioning](https://semver.org/lang/ja/) に従っています。
 
+## [0.2.0] - 2026-09-05
+
+### 追加
+
+- ライフログへの現在地付与と位置情報付き記録の地図表示
+- 位置情報付き記録を取得する地図API
+
 ## [Unreleased]
 
 ## [0.1.1] - 2026-09-05

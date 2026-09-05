@@ -16,7 +16,7 @@ export function GET(request: NextRequest) {
     if (!Number.isInteger(page) || page < 1) return NextResponse.json({error: {code: 'INVALID_PAGE', message: 'ページ番号が不正です'}}, {status: 400});
     try {
         const result = listLifeLogs(page, tagId);
-        return NextResponse.json({items: result.items.map((item) => ({id: item.id, body: item.body, occurredAt: item.occurredAt, timezone: item.timezone, tags: item.tags, createdAt: item.createdAt, updatedAt: item.updatedAt})), pagination: {page, pageSize: 20, totalItems: result.totalItems, totalPages: result.totalPages}});
+        return NextResponse.json({items: result.items.map((item) => ({id: item.id, body: item.body, occurredAt: item.occurredAt, timezone: item.timezone, tags: item.tags, createdAt: item.createdAt, updatedAt: item.updatedAt, location: item.location})), pagination: {page, pageSize: 20, totalItems: result.totalItems, totalPages: result.totalPages}});
     } catch (error) { return errorResponse(error); }
 }
 

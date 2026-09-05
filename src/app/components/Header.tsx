@@ -2,6 +2,7 @@
 
 import {useSyncExternalStore} from 'react';
 import {useDarkMode} from './DarkModeProvider';
+import Link from 'next/link';
 
 const emptySubscribe = () => () => {
 };
@@ -40,6 +41,7 @@ export default function Header() {
                     </div>
 
                     <div className="flex items-center">
+                        <Link href="/map" className="mr-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">地図</Link>
                         <button
                             onClick={handleThemeToggle}
                             className="flex items-center gap-2 px-3 py-2 text-sm font-medium

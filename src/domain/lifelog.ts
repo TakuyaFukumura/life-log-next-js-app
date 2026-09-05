@@ -7,6 +7,13 @@ export type Tag = {
     updatedAt: string;
 };
 
+export type LifeLogLocation = {
+    latitude: number;
+    longitude: number;
+    accuracyMeters: number | null;
+    capturedAt: string;
+};
+
 export type LifeLog = {
     id: string;
     body: string;
@@ -16,13 +23,22 @@ export type LifeLog = {
     createdAt: string;
     updatedAt: string;
     deletedAt: string | null;
+    location: LifeLogLocation | null;
 };
+
+export type LifeLogLocationInput = {
+    latitude: number;
+    longitude: number;
+    accuracyMeters?: number | null;
+    capturedAt: string;
+} | null;
 
 export type CreateLifeLogInput = {
     body: string;
     occurredAt?: string;
     tagIds?: string[];
     newTagNames?: string[];
+    location?: LifeLogLocationInput;
 };
 
 export type UpdateLifeLogInput = Partial<CreateLifeLogInput>;
