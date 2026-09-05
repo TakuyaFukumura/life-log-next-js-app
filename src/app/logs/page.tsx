@@ -1,6 +1,6 @@
 'use client';
 
-import {FormEvent, useCallback, useEffect, useState} from 'react';
+import {ChangeEvent, FormEvent, useCallback, useEffect, useState} from 'react';
 import type {ApiLifeLog, LifeLogLocationInput} from '../../domain/lifelog';
 import LocationPicker from '../components/LocationPicker';
 
@@ -164,6 +164,35 @@ export default function Home() {
         }
     };
 
+    const importJson = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        try {
+            const content = await file.text();
+            const response = await fetch('/api/lifelogs/import', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: content,
+            });
+            const data = await response.json() as {
+                imported?: number;
+                skipped?: number;
+                invalid?: number;
+                error?: { message: string }
+            };
+            if (!response.ok) throw new Error(data.error?.message ?? 'JSONインポートに失敗しました');
+            setNotice(`JSONを取り込みました（登録: ${data.imported ?? 0}件、重複: ${data.skipped ?? 0}件、不正: ${data.invalid ?? 0}件）`);
+            setError(null);
+            await fetchItems(1);
+            const tagsResponse = await fetch('/api/tags');
+            const tagsData = await tagsResponse.json() as { items?: AvailableTag[] };
+            if (tagsResponse.ok) setAvailableTags(tagsData.items ?? []);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'JSONインポートに失敗しました');
+        }
+    };
+
     return (
         <main
             className="min-h-[calc(100vh-4rem)] bg-linear-to-br from-blue-50 to-indigo-100 px-4 py-8 dark:from-gray-900 dark:to-gray-800">
@@ -172,6 +201,12 @@ export default function Home() {
                     <div><h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">ライフログ</h1><p
                         className="text-sm text-gray-500">日々の出来事を記録しましょう</p></div>
                     <div className="flex gap-2">
+                        <label
+                            className="cursor-pointer rounded-lg border px-4 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">
+                            JSONをインポート
+                            <input type="file" accept="application/json,.json" onChange={(event) => void importJson(event)}
+                                   className="sr-only"/>
+                        </label>
                         <button type="button" onClick={() => void exportJson()}
                                 className="rounded-lg border px-4 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">JSONをダウンロード
                         </button>

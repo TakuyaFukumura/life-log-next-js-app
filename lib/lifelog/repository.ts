@@ -12,6 +12,12 @@ type Row = {
 };
 type TagRow = { id: string; name: string; created_at: string; updated_at: string };
 
+export type ImportLifeLogsResult = {
+    imported: number;
+    skipped: number;
+    invalid: number;
+};
+
 function tagFromRow(row: TagRow): Tag {
     return {id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at};
 }
@@ -84,6 +90,82 @@ export function listAllLifeLogs(): LifeLog[] {
         ORDER BY occurred_at DESC, id DESC
     `).all() as Row[];
     return rows.map((row) => toLifeLog(database, row));
+}
+
+function isImportedLifeLog(value: unknown): value is Omit<LifeLog, 'deletedAt'> {
+    if (typeof value !== 'object' || value === null) return false;
+    const item = value as Partial<Omit<LifeLog, 'deletedAt'>>;
+    if (typeof item.id !== 'string' || item.id.length === 0 ||
+        typeof item.body !== 'string' || item.body.trim().length === 0 || [...item.body].length > 1000 ||
+        typeof item.occurredAt !== 'string' || Number.isNaN(Date.parse(item.occurredAt)) ||
+        item.timezone !== 'Asia/Tokyo' ||
+        typeof item.createdAt !== 'string' || Number.isNaN(Date.parse(item.createdAt)) ||
+        typeof item.updatedAt !== 'string' || Number.isNaN(Date.parse(item.updatedAt)) ||
+        !Array.isArray(item.tags)) return false;
+    if (item.tags.some((tag) => typeof tag !== 'object' || tag === null ||
+        typeof (tag as Partial<Tag>).id !== 'string' || (tag as Partial<Tag>).id!.length === 0 ||
+        typeof (tag as Partial<Tag>).name !== 'string' || (tag as Partial<Tag>).name!.trim().length === 0 ||
+        [...(tag as Partial<Tag>).name!].length > 30 ||
+        typeof (tag as Partial<Tag>).createdAt !== 'string' || Number.isNaN(Date.parse((tag as Partial<Tag>).createdAt!)) ||
+        typeof (tag as Partial<Tag>).updatedAt !== 'string' || Number.isNaN(Date.parse((tag as Partial<Tag>).updatedAt!)))) return false;
+    if (item.location !== null && item.location !== undefined) {
+        const location = item.location;
+        if (typeof location !== 'object' ||
+            typeof location.latitude !== 'number' || !Number.isFinite(location.latitude) || location.latitude < -90 || location.latitude > 90 ||
+            typeof location.longitude !== 'number' || !Number.isFinite(location.longitude) || location.longitude < -180 || location.longitude > 180 ||
+            (location.accuracyMeters !== null && (typeof location.accuracyMeters !== 'number' || !Number.isFinite(location.accuracyMeters) || location.accuracyMeters <= 0)) ||
+            typeof location.capturedAt !== 'string' || Number.isNaN(Date.parse(location.capturedAt))) return false;
+    }
+    return true;
+}
+
+export function importLifeLogs(input: unknown): ImportLifeLogsResult {
+    if (!Array.isArray(input)) throw new ValidationError('INVALID_IMPORT_FORMAT', 'JSONは記録の配列である必要があります');
+    const database = getDatabase();
+    const seenIds = new Set<string>();
+    let imported = 0;
+    let skipped = 0;
+    let invalid = 0;
+    const findLifeLog = database.prepare('SELECT id FROM lifelogs WHERE id = ?');
+    const findTagById = database.prepare('SELECT id FROM tags WHERE id = ?');
+    const findTagByName = database.prepare('SELECT id FROM tags WHERE name = ? COLLATE NOCASE');
+    const insertTag = database.prepare('INSERT INTO tags (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)');
+    const insertLifeLog = database.prepare(`INSERT INTO lifelogs (
+        id, body, occurred_at, timezone, created_at, updated_at,
+        latitude, longitude, location_accuracy_meters, location_captured_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const insertLink = database.prepare('INSERT INTO lifelog_tags (lifelog_id, tag_id) VALUES (?, ?)');
+
+    for (const value of input) {
+        if (!isImportedLifeLog(value)) {
+            invalid++;
+            continue;
+        }
+        if (seenIds.has(value.id) || findLifeLog.get(value.id)) {
+            skipped++;
+            continue;
+        }
+        seenIds.add(value.id);
+        database.transaction(() => {
+            const tagIds = value.tags.map((tag) => {
+                const existingById = findTagById.get(tag.id) as { id: string } | undefined;
+                if (existingById) return existingById.id;
+                const existingByName = findTagByName.get(tag.name.trim()) as { id: string } | undefined;
+                if (existingByName) return existingByName.id;
+                insertTag.run(tag.id, tag.name.trim(), tag.createdAt, tag.updatedAt);
+                return tag.id;
+            });
+            const location = value.location;
+            insertLifeLog.run(
+                value.id, value.body, new Date(value.occurredAt).toISOString(), value.timezone,
+                value.createdAt, value.updatedAt, location?.latitude ?? null, location?.longitude ?? null,
+                location?.accuracyMeters ?? null, location?.capturedAt ?? null,
+            );
+            [...new Set(tagIds)].forEach((tagId) => insertLink.run(value.id, tagId));
+        })();
+        imported++;
+    }
+    return {imported, skipped, invalid};
 }
 
 export function getLifeLog(id: string, includeDeleted = false): LifeLog | undefined {
