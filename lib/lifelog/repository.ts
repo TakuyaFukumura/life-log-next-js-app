@@ -1,0 +1,123 @@
+import {randomUUID} from 'crypto';
+import type Database from 'better-sqlite3';
+import {getDatabase} from '../database';
+import type {CreateLifeLogInput, LifeLog, Tag, UpdateLifeLogInput} from '../../src/domain/lifelog';
+import {normalizeOccurredAt, assertValidInput, ValidationError} from '../../src/domain/validation';
+
+type Row = {
+    id: string; body: string; occurred_at: string; timezone: string;
+    created_at: string; updated_at: string; deleted_at: string | null;
+};
+type TagRow = {id: string; name: string; created_at: string; updated_at: string};
+
+function tagFromRow(row: TagRow): Tag {
+    return {id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at};
+}
+
+function toLifeLog(database: Database.Database, row: Row): LifeLog {
+    const tags = database.prepare(`
+        SELECT t.id, t.name, t.created_at, t.updated_at FROM tags t
+        JOIN lifelog_tags lt ON lt.tag_id = t.id WHERE lt.lifelog_id = ? ORDER BY t.name
+    `).all(row.id) as TagRow[];
+    return {
+        id: row.id, body: row.body, occurredAt: row.occurred_at, timezone: 'Asia/Tokyo',
+        tags: tags.map(tagFromRow), createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at,
+    };
+}
+
+function getRow(database: Database.Database, id: string, includeDeleted = false): Row | undefined {
+    return database.prepare(`SELECT * FROM lifelogs WHERE id = ? ${includeDeleted ? '' : 'AND deleted_at IS NULL'}`).get(id) as Row | undefined;
+}
+
+function resolveTags(database: Database.Database, tagIds: string[] = [], newTagNames: string[] = [], now: string): string[] {
+    const ids = [...new Set(tagIds)];
+    const find = database.prepare('SELECT id FROM tags WHERE id = ?');
+    for (const id of ids) if (!find.get(id)) throw new ValidationError('TAG_NOT_FOUND', '指定されたタグが見つかりません', {tagIds: '指定されたタグが見つかりません'});
+    const insert = database.prepare('INSERT INTO tags (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)');
+    const findName = database.prepare('SELECT id FROM tags WHERE name = ? COLLATE NOCASE');
+    for (const rawName of newTagNames) {
+        const name = rawName.trim();
+        if (!name) throw new ValidationError('TAG_NAME_REQUIRED', 'タグ名を入力してください', {newTagNames: 'タグ名を入力してください'});
+        if ([...name].length > 30) throw new ValidationError('TAG_NAME_TOO_LONG', 'タグ名は30文字以内で入力してください', {newTagNames: 'タグ名は30文字以内で入力してください'});
+        const existing = findName.get(name) as {id: string} | undefined;
+        if (existing) ids.push(existing.id);
+        else {
+            const id = randomUUID();
+            insert.run(id, name, now, now);
+            ids.push(id);
+        }
+    }
+    return [...new Set(ids)];
+}
+
+export function listLifeLogs(page = 1, tagId?: string): {items: LifeLog[]; totalItems: number; totalPages: number} {
+    const database = getDatabase();
+    const condition = tagId ? 'AND EXISTS (SELECT 1 FROM lifelog_tags filter_lt WHERE filter_lt.lifelog_id = l.id AND filter_lt.tag_id = @tagId)' : '';
+    const params = tagId ? {tagId} : {};
+    const total = database.prepare(`SELECT COUNT(*) as count FROM lifelogs l WHERE deleted_at IS NULL ${condition}`).get(params) as {count: number};
+    const rows = database.prepare(`SELECT l.* FROM lifelogs l WHERE deleted_at IS NULL ${condition} ORDER BY occurred_at DESC, id DESC LIMIT 20 OFFSET @offset`).all({...params, offset: (page - 1) * 20}) as Row[];
+    return {items: rows.map((row) => toLifeLog(database, row)), totalItems: total.count, totalPages: Math.ceil(total.count / 20)};
+}
+
+export function getLifeLog(id: string, includeDeleted = false): LifeLog | undefined {
+    const database = getDatabase();
+    const row = getRow(database, id, includeDeleted);
+    return row ? toLifeLog(database, row) : undefined;
+}
+
+export function createLifeLog(input: CreateLifeLogInput): LifeLog {
+    assertValidInput(input);
+    const database = getDatabase();
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    const occurredAt = normalizeOccurredAt(input.occurredAt);
+    const create = database.transaction(() => {
+        const tagIds = resolveTags(database, input.tagIds, input.newTagNames, now);
+        database.prepare('INSERT INTO lifelogs (id, body, occurred_at, timezone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, input.body, occurredAt, 'Asia/Tokyo', now, now);
+        const link = database.prepare('INSERT INTO lifelog_tags (lifelog_id, tag_id) VALUES (?, ?)');
+        tagIds.forEach((tagId) => link.run(id, tagId));
+    });
+    create();
+    return getLifeLog(id)!;
+}
+
+export function updateLifeLog(id: string, input: UpdateLifeLogInput): LifeLog | undefined {
+    assertValidInput(input, true);
+    const database = getDatabase();
+    if (!getRow(database, id)) return undefined;
+    const current = getRow(database, id)!;
+    const now = new Date().toISOString();
+    database.transaction(() => {
+        const occurredAt = input.occurredAt === undefined ? current.occurred_at : normalizeOccurredAt(input.occurredAt);
+        database.prepare('UPDATE lifelogs SET body = ?, occurred_at = ?, updated_at = ? WHERE id = ?').run(input.body ?? current.body, occurredAt, now, id);
+        if (input.tagIds !== undefined || input.newTagNames !== undefined) {
+            const tagIds = resolveTags(database, input.tagIds ?? [], input.newTagNames ?? [], now);
+            database.prepare('DELETE FROM lifelog_tags WHERE lifelog_id = ?').run(id);
+            const link = database.prepare('INSERT INTO lifelog_tags (lifelog_id, tag_id) VALUES (?, ?)');
+            tagIds.forEach((tagId) => link.run(id, tagId));
+        }
+    })();
+    return getLifeLog(id);
+}
+
+export function deleteLifeLog(id: string): boolean {
+    const database = getDatabase();
+    return database.prepare('UPDATE lifelogs SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(new Date().toISOString(), new Date().toISOString(), id).changes > 0;
+}
+
+export function listTrash(page = 1): {items: LifeLog[]; totalItems: number; totalPages: number} {
+    const database = getDatabase();
+    const total = database.prepare('SELECT COUNT(*) as count FROM lifelogs WHERE deleted_at IS NOT NULL').get() as {count: number};
+    const rows = database.prepare('SELECT * FROM lifelogs WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC LIMIT 20 OFFSET ?').all((page - 1) * 20) as Row[];
+    return {items: rows.map((row) => toLifeLog(database, row)), totalItems: total.count, totalPages: Math.ceil(total.count / 20)};
+}
+
+export function restoreLifeLog(id: string): LifeLog | undefined {
+    const database = getDatabase();
+    const result = database.prepare('UPDATE lifelogs SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL').run(new Date().toISOString(), id);
+    return result.changes ? getLifeLog(id) : undefined;
+}
+
+export function permanentlyDeleteLifeLog(id: string): boolean {
+    return getDatabase().prepare('DELETE FROM lifelogs WHERE id = ? AND deleted_at IS NOT NULL').run(id).changes > 0;
+}
