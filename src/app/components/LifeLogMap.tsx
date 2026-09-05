@@ -10,10 +10,14 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import type {Tag} from '../../domain/lifelog';
 
+function getAssetUrl(asset: string | { src: string }): string {
+    return typeof asset === 'string' ? asset : asset.src;
+}
+
 const lifeLogMarkerIcon = new Icon({
-    iconRetinaUrl: markerIcon2x.src,
-    iconUrl: markerIcon.src,
-    shadowUrl: markerShadow.src,
+    iconRetinaUrl: getAssetUrl(markerIcon2x),
+    iconUrl: getAssetUrl(markerIcon),
+    shadowUrl: getAssetUrl(markerShadow),
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
