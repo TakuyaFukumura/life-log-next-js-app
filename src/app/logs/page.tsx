@@ -31,6 +31,26 @@ export default function Home() {
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
 
+    useEffect(() => {
+        const searchParams = new URLSearchParams(window.location.search);
+        const latitude = Number(searchParams.get('latitude'));
+        const longitude = Number(searchParams.get('longitude'));
+        if (!searchParams.has('latitude') || !searchParams.has('longitude') ||
+            !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+            !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return;
+        // URL parameters initialize the form when arriving from a map location.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setEditingId(null);
+        setForm({
+            body: '',
+            occurredAt: localDateTime(),
+            tagIds: [],
+            location: {latitude, longitude, accuracyMeters: null, capturedAt: new Date().toISOString()},
+        });
+        setTagToAdd('');
+        setIsModalOpen(true);
+    }, []);
+
     const fetchItems = useCallback(async (page = 1) => {
         setLoading(true);
         try {
