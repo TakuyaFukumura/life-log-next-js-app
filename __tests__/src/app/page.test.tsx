@@ -24,8 +24,19 @@ describe('Home', () => {
     });
 
     it('一覧を表示して削除確認を行う', async () => {
-        const item = {id: '1', body: 'テスト記録', occurredAt: '2026-09-05T06:00:00.000Z', timezone: 'Asia/Tokyo', tags: [], createdAt: '2026-09-05T06:00:00.000Z', updatedAt: '2026-09-05T06:00:00.000Z'};
-        jest.spyOn(global, 'fetch').mockResolvedValue(response({items: [item], pagination: {...list.pagination, totalItems: 1}}));
+        const item = {
+            id: '1',
+            body: 'テスト記録',
+            occurredAt: '2026-09-05T06:00:00.000Z',
+            timezone: 'Asia/Tokyo',
+            tags: [],
+            createdAt: '2026-09-05T06:00:00.000Z',
+            updatedAt: '2026-09-05T06:00:00.000Z'
+        };
+        jest.spyOn(global, 'fetch').mockResolvedValue(response({
+            items: [item],
+            pagination: {...list.pagination, totalItems: 1}
+        }));
         jest.spyOn(window, 'confirm').mockReturnValue(false);
         render(<Home/>, {reactStrictMode: false});
         expect(await screen.findByText('テスト記録')).toBeInTheDocument();

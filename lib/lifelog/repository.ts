@@ -2,7 +2,7 @@ import {randomUUID} from 'crypto';
 import type Database from 'better-sqlite3';
 import {getDatabase} from '../database';
 import type {CreateLifeLogInput, LifeLog, Tag, UpdateLifeLogInput} from '../../src/domain/lifelog';
-import {normalizeOccurredAt, assertValidInput, ValidationError} from '../../src/domain/validation';
+import {assertValidInput, normalizeOccurredAt, ValidationError} from '../../src/domain/validation';
 
 type Row = {
     id: string; body: string; occurred_at: string; timezone: string;
@@ -10,7 +10,7 @@ type Row = {
     latitude: number | null; longitude: number | null;
     location_accuracy_meters: number | null; location_captured_at: string | null;
 };
-type TagRow = {id: string; name: string; created_at: string; updated_at: string};
+type TagRow = { id: string; name: string; created_at: string; updated_at: string };
 
 function tagFromRow(row: TagRow): Tag {
     return {id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at};
@@ -25,7 +25,10 @@ function toLifeLog(database: Database.Database, row: Row): LifeLog {
         id: row.id, body: row.body, occurredAt: row.occurred_at, timezone: 'Asia/Tokyo',
         tags: tags.map(tagFromRow), createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at,
         location: row.latitude !== null && row.longitude !== null && row.location_captured_at !== null ? {
-            latitude: row.latitude, longitude: row.longitude, accuracyMeters: row.location_accuracy_meters, capturedAt: row.location_captured_at,
+            latitude: row.latitude,
+            longitude: row.longitude,
+            accuracyMeters: row.location_accuracy_meters,
+            capturedAt: row.location_captured_at,
         } : null,
     };
 }
@@ -44,7 +47,7 @@ function resolveTags(database: Database.Database, tagIds: string[] = [], newTagN
         const name = rawName.trim();
         if (!name) throw new ValidationError('TAG_NAME_REQUIRED', 'タグ名を入力してください', {newTagNames: 'タグ名を入力してください'});
         if ([...name].length > 30) throw new ValidationError('TAG_NAME_TOO_LONG', 'タグ名は30文字以内で入力してください', {newTagNames: 'タグ名は30文字以内で入力してください'});
-        const existing = findName.get(name) as {id: string} | undefined;
+        const existing = findName.get(name) as { id: string } | undefined;
         if (existing) ids.push(existing.id);
         else {
             const id = randomUUID();
@@ -55,13 +58,22 @@ function resolveTags(database: Database.Database, tagIds: string[] = [], newTagN
     return [...new Set(ids)];
 }
 
-export function listLifeLogs(page = 1, tagId?: string): {items: LifeLog[]; totalItems: number; totalPages: number} {
+export function listLifeLogs(page = 1, tagId?: string): { items: LifeLog[]; totalItems: number; totalPages: number } {
     const database = getDatabase();
     const condition = tagId ? 'AND EXISTS (SELECT 1 FROM lifelog_tags filter_lt WHERE filter_lt.lifelog_id = l.id AND filter_lt.tag_id = @tagId)' : '';
     const params = tagId ? {tagId} : {};
-    const total = database.prepare(`SELECT COUNT(*) as count FROM lifelogs l WHERE deleted_at IS NULL ${condition}`).get(params) as {count: number};
-    const rows = database.prepare(`SELECT l.* FROM lifelogs l WHERE deleted_at IS NULL ${condition} ORDER BY occurred_at DESC, id DESC LIMIT 20 OFFSET @offset`).all({...params, offset: (page - 1) * 20}) as Row[];
-    return {items: rows.map((row) => toLifeLog(database, row)), totalItems: total.count, totalPages: Math.ceil(total.count / 20)};
+    const total = database.prepare(`SELECT COUNT(*) as count FROM lifelogs l WHERE deleted_at IS NULL ${condition}`).get(params) as {
+        count: number
+    };
+    const rows = database.prepare(`SELECT l.* FROM lifelogs l WHERE deleted_at IS NULL ${condition} ORDER BY occurred_at DESC, id DESC LIMIT 20 OFFSET @offset`).all({
+        ...params,
+        offset: (page - 1) * 20
+    }) as Row[];
+    return {
+        items: rows.map((row) => toLifeLog(database, row)),
+        totalItems: total.count,
+        totalPages: Math.ceil(total.count / 20)
+    };
 }
 
 export function getLifeLog(id: string, includeDeleted = false): LifeLog | undefined {
@@ -129,7 +141,10 @@ export type MapLifeLog = {
     location: Exclude<LifeLog['location'], null>;
 };
 
-export function listMapLifeLogs(options: {tagId?: string; from?: string; to?: string} = {}): {items: MapLifeLog[]; truncated: boolean} {
+export function listMapLifeLogs(options: { tagId?: string; from?: string; to?: string } = {}): {
+    items: MapLifeLog[];
+    truncated: boolean
+} {
     const database = getDatabase();
     const filters = [
         options.tagId ? 'AND EXISTS (SELECT 1 FROM lifelog_tags filter_lt WHERE filter_lt.lifelog_id = l.id AND filter_lt.tag_id = @tagId)' : '',
@@ -153,7 +168,13 @@ export function listMapLifeLogs(options: {tagId?: string; from?: string; to?: st
         items: rows.slice(0, 100).map((row) => {
             const item = toLifeLog(database, row);
             if (!item.location) throw new Error('位置情報付き記録の変換に失敗しました');
-            return {id: item.id, occurredAt: item.occurredAt, bodyPreview: [...item.body].slice(0, 120).join(''), tags: item.tags, location: item.location};
+            return {
+                id: item.id,
+                occurredAt: item.occurredAt,
+                bodyPreview: [...item.body].slice(0, 120).join(''),
+                tags: item.tags,
+                location: item.location
+            };
         }),
     };
 }
@@ -163,11 +184,17 @@ export function deleteLifeLog(id: string): boolean {
     return database.prepare('UPDATE lifelogs SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL').run(new Date().toISOString(), new Date().toISOString(), id).changes > 0;
 }
 
-export function listTrash(page = 1): {items: LifeLog[]; totalItems: number; totalPages: number} {
+export function listTrash(page = 1): { items: LifeLog[]; totalItems: number; totalPages: number } {
     const database = getDatabase();
-    const total = database.prepare('SELECT COUNT(*) as count FROM lifelogs WHERE deleted_at IS NOT NULL').get() as {count: number};
+    const total = database.prepare('SELECT COUNT(*) as count FROM lifelogs WHERE deleted_at IS NOT NULL').get() as {
+        count: number
+    };
     const rows = database.prepare('SELECT * FROM lifelogs WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC LIMIT 20 OFFSET ?').all((page - 1) * 20) as Row[];
-    return {items: rows.map((row) => toLifeLog(database, row)), totalItems: total.count, totalPages: Math.ceil(total.count / 20)};
+    return {
+        items: rows.map((row) => toLifeLog(database, row)),
+        totalItems: total.count,
+        totalPages: Math.ceil(total.count / 20)
+    };
 }
 
 export function restoreLifeLog(id: string): LifeLog | undefined {

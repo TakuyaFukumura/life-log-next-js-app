@@ -13,13 +13,25 @@ describe('位置情報の入力検証', () => {
     });
 
     it('緯度・経度の範囲外を拒否する', () => {
-        expect(validateLifeLogInput({body: '本文', location: {...location, latitude: 91}})).toEqual({location: '緯度の値が不正です'});
-        expect(validateLifeLogInput({body: '本文', location: {...location, longitude: -181}})).toEqual({location: '経度の値が不正です'});
+        expect(validateLifeLogInput({
+            body: '本文',
+            location: {...location, latitude: 91}
+        })).toEqual({location: '緯度の値が不正です'});
+        expect(validateLifeLogInput({
+            body: '本文',
+            location: {...location, longitude: -181}
+        })).toEqual({location: '経度の値が不正です'});
     });
 
     it('精度の0以下と不正な取得日時を拒否する', () => {
-        expect(validateLifeLogInput({body: '本文', location: {...location, accuracyMeters: 0}})).toEqual({location: '位置情報の精度が不正です'});
-        expect(validateLifeLogInput({body: '本文', location: {...location, capturedAt: 'invalid'}})).toEqual({location: '位置情報の取得日時が不正です'});
+        expect(validateLifeLogInput({
+            body: '本文',
+            location: {...location, accuracyMeters: 0}
+        })).toEqual({location: '位置情報の精度が不正です'});
+        expect(validateLifeLogInput({
+            body: '本文',
+            location: {...location, capturedAt: 'invalid'}
+        })).toEqual({location: '位置情報の取得日時が不正です'});
     });
 
     it('位置情報nullを受け付ける', () => {

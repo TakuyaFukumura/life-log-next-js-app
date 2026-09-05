@@ -46,7 +46,9 @@ export function validateLifeLogInput(input: CreateLifeLogInput | UpdateLifeLogIn
     const errors: ValidationResult = {};
     if (!partial || 'body' in input) errors.body = validateBody(input.body);
     if ('occurredAt' in input && input.occurredAt !== undefined) {
-        try { normalizeOccurredAt(input.occurredAt); } catch (error) {
+        try {
+            normalizeOccurredAt(input.occurredAt);
+        } catch (error) {
             if (error instanceof ValidationError) errors.occurredAt = error.message;
             else throw error;
         }

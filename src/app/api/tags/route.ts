@@ -7,5 +7,10 @@ export function GET() {
 }
 
 export function POST() {
-    return NextResponse.json({error: {code: 'NOT_IMPLEMENTED', message: 'タグ作成はライフログ登録時に行えます'}}, {status: 501});
+    return NextResponse.json({
+        error: {
+            code: 'NOT_IMPLEMENTED',
+            message: 'タグ作成はライフログ登録時に行えます'
+        }
+    }, {status: 501});
 }
