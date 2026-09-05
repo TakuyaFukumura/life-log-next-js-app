@@ -129,14 +129,21 @@ export type MapLifeLog = {
     location: Exclude<LifeLog['location'], null>;
 };
 
-export function listMapLifeLogs(tagId?: string): {items: MapLifeLog[]; truncated: boolean} {
+export function listMapLifeLogs(options: {tagId?: string; from?: string; to?: string} = {}): {items: MapLifeLog[]; truncated: boolean} {
     const database = getDatabase();
-    const condition = tagId ? 'AND EXISTS (SELECT 1 FROM lifelog_tags filter_lt WHERE filter_lt.lifelog_id = l.id AND filter_lt.tag_id = @tagId)' : '';
-    const params = tagId ? {tagId} : {};
+    const filters = [
+        options.tagId ? 'AND EXISTS (SELECT 1 FROM lifelog_tags filter_lt WHERE filter_lt.lifelog_id = l.id AND filter_lt.tag_id = @tagId)' : '',
+        options.from ? 'AND l.occurred_at >= @from' : '',
+        options.to ? 'AND l.occurred_at <= @to' : '',
+    ].join(' ');
+    const params: Record<string, string> = {};
+    if (options.tagId) params.tagId = options.tagId;
+    if (options.from) params.from = options.from;
+    if (options.to) params.to = options.to;
     const rows = database.prepare(`
         SELECT l.* FROM lifelogs l
         WHERE l.deleted_at IS NULL AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL
-          AND l.location_captured_at IS NOT NULL ${condition}
+          AND l.location_captured_at IS NOT NULL ${filters}
         ORDER BY l.occurred_at DESC, l.id DESC
         LIMIT 101
     `).all(params) as Row[];
