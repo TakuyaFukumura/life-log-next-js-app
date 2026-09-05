@@ -16,6 +16,7 @@ describe('Home', () => {
         jest.spyOn(global, 'fetch').mockResolvedValue(response(list));
         render(<Home/>, {reactStrictMode: false});
         expect(await screen.findByText(/記録はまだありません/)).toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'JSONをダウンロード'})).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '記録する'}));
         expect(screen.getByRole('dialog')).toBeInTheDocument();
         expect(screen.getByLabelText('本文')).toHaveClass('dark:text-gray-100');

@@ -76,6 +76,16 @@ export function listLifeLogs(page = 1, tagId?: string): { items: LifeLog[]; tota
     };
 }
 
+export function listAllLifeLogs(): LifeLog[] {
+    const database = getDatabase();
+    const rows = database.prepare(`
+        SELECT * FROM lifelogs
+        WHERE deleted_at IS NULL
+        ORDER BY occurred_at DESC, id DESC
+    `).all() as Row[];
+    return rows.map((row) => toLifeLog(database, row));
+}
+
 export function getLifeLog(id: string, includeDeleted = false): LifeLog | undefined {
     const database = getDatabase();
     const row = getRow(database, id, includeDeleted);

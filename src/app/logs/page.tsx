@@ -143,6 +143,27 @@ export default function Home() {
         await fetchItems(pagination.page);
     };
 
+    const exportJson = async () => {
+        try {
+            const response = await fetch('/api/lifelogs/export');
+            if (!response.ok) {
+                const data = await response.json() as { error?: { message: string } };
+                throw new Error(data.error?.message ?? 'JSON出力に失敗しました');
+            }
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'lifelogs.json';
+            link.click();
+            URL.revokeObjectURL(url);
+            setNotice('JSONをダウンロードしました');
+            setError(null);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'JSON出力に失敗しました');
+        }
+    };
+
     return (
         <main
             className="min-h-[calc(100vh-4rem)] bg-linear-to-br from-blue-50 to-indigo-100 px-4 py-8 dark:from-gray-900 dark:to-gray-800">
@@ -150,9 +171,14 @@ export default function Home() {
                 <div className="mb-6 flex items-center justify-between gap-4">
                     <div><h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">ライフログ</h1><p
                         className="text-sm text-gray-500">日々の出来事を記録しましょう</p></div>
-                    <button type="button" onClick={openCreate}
-                            className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">記録する
-                    </button>
+                    <div className="flex gap-2">
+                        <button type="button" onClick={() => void exportJson()}
+                                className="rounded-lg border px-4 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">JSONをダウンロード
+                        </button>
+                        <button type="button" onClick={openCreate}
+                                className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">記録する
+                        </button>
+                    </div>
                 </div>
                 {notice && <p role="status" className="mb-4 rounded bg-green-50 p-3 text-green-700">{notice}</p>}
                 {error && <div role="alert" className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}
