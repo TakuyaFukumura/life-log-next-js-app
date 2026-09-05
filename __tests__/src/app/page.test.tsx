@@ -20,6 +20,7 @@ describe('Home', () => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
         expect(screen.getByLabelText('本文')).toHaveClass('dark:text-gray-100');
         expect(screen.getByLabelText('日時')).toHaveClass('dark:text-gray-100');
+        expect(screen.getByLabelText('タグ（カンマ区切り）')).toHaveClass('dark:border-gray-600');
     });
 
     it('一覧を表示して削除確認を行う', async () => {
