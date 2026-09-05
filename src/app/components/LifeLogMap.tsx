@@ -3,8 +3,22 @@
 import {useEffect, useMemo, useState} from 'react';
 import Link from 'next/link';
 import {MapContainer, Marker, Popup, TileLayer, useMap} from 'react-leaflet';
+import {Icon} from 'leaflet';
 import type {LatLngBoundsExpression} from 'leaflet';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import type {Tag} from '../../domain/lifelog';
+
+const lifeLogMarkerIcon = new Icon({
+    iconRetinaUrl: markerIcon2x.src,
+    iconUrl: markerIcon.src,
+    shadowUrl: markerShadow.src,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+});
 
 type MapItem = {
     id: string;
@@ -69,7 +83,8 @@ export default function LifeLogMap() {
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'/>
                 <FitToItems items={items}/>
-                {items.map((item) => <Marker key={item.id} position={[item.location.latitude, item.location.longitude]}><Popup>
+                {items.map((item) => <Marker key={item.id} icon={lifeLogMarkerIcon}
+                                             position={[item.location.latitude, item.location.longitude]}><Popup>
                     <div className="max-w-60">
                         <time
                             className="text-xs text-gray-500">{new Date(item.occurredAt).toLocaleString('ja-JP')}</time>
