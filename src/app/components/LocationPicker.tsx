@@ -49,7 +49,7 @@ export default function LocationPicker({location, onChange}: Props) {
             <p className="text-sm text-gray-600 dark:text-gray-300">現在地を記録に付ける場合だけ、ボタンを押してください。</p>
             {location &&
                 <p className="mt-2 text-sm text-green-700 dark:text-green-300">位置情報を取得済み（精度: {location.accuracyMeters === null || location.accuracyMeters === undefined ? '不明' : `${Math.round(location.accuracyMeters)}m`}）</p>}
-            {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
+            {error && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
             <div className="mt-2 flex gap-3">
                 <button type="button" onClick={getCurrentLocation} disabled={loading}
                         className="rounded border px-3 py-1 text-sm disabled:opacity-50">
