@@ -1,7 +1,7 @@
 # life-log-next-js-app
 
-Next.jsを使ったシンプルな「Hello, world.」アプリケーションです。
-このプロジェクトは、SQLiteデータベースからメッセージを取得して表示する基本的な機能を提供します。
+Next.jsを使った個人向けライフログアプリケーションです。
+出来事を本文・日時・タグ付きで記録し、新しい順に振り返れます。
 
 ## 技術スタック
 
@@ -14,7 +14,9 @@ Next.jsを使ったシンプルな「Hello, world.」アプリケーションで
 
 ## 機能
 
-- SQLiteデータベースから「Hello, world.」メッセージを取得
+- 出来事の登録・一覧・編集・論理削除（ゴミ箱）
+- 本文1,000文字、日時、タグの入力検証
+- SQLiteのライフログ・タグ・関連テーブル
 - レスポンシブデザイン対応
 - ダークモード対応（手動切替機能付き）
     - ライトモードとダークモードの2つのモードを手動で切り替え可能
@@ -113,8 +115,8 @@ pnpm start
 ├── src/
 │   └── app/
 │       ├── api/
-│       │   └── message/
-│       │       └── route.ts # APIエンドポイント
+│       │   ├── lifelogs/    # 出来事の一覧・登録・更新・削除API
+│       │   └── trash/       # ゴミ箱・復元・完全削除API
 │       ├── components/      # Reactコンポーネント
 │       │   ├── DarkModeProvider.tsx  # ダークモードProvider
 │       │   └── Header.tsx   # ヘッダーコンポーネント
@@ -130,27 +132,33 @@ pnpm start
 
 ## API エンドポイント
 
-### GET /api/message
+### GET /api/lifelogs
 
-データベースから最新のメッセージを取得します。
+通常の出来事を新しい順に取得します。`page` でページを指定できます。
 
 **レスポンス:**
 
 ```json
 {
-  "message": "Hello, world."
+  "items": [],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "totalItems": 0,
+    "totalPages": 0
+  }
 }
 ```
 
-## データベース
+`POST /api/lifelogs` で登録、`PATCH` と `DELETE`（論理削除）を `/api/lifelogs/:id` に対して実行できます。
+削除済みの記録は `/api/trash` から確認・復元・完全削除できます。
 
 SQLiteデータベースは初回起動時に自動的に作成されます：
 
 - データベースファイル: `data/app.db`
-- テーブル: `messages`
-    - `id`: 自動増分プライマリーキー
-    - `content`: メッセージ内容
-    - `created_at`: 作成日時
+- `lifelogs`: 出来事本体
+- `tags`: タグ
+- `lifelog_tags`: 出来事とタグの関連
 
 ## カスタマイズ
 
