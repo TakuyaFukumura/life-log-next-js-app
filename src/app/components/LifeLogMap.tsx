@@ -2,7 +2,7 @@
 
 import {useEffect, useMemo, useState} from 'react';
 import Link from 'next/link';
-import {MapContainer, Marker, Popup, TileLayer, useMap} from 'react-leaflet';
+import {MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents} from 'react-leaflet';
 import {Icon} from 'leaflet';
 import type {LatLngBoundsExpression} from 'leaflet';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -45,8 +45,16 @@ function FitToItems({items}: { items: MapItem[] }) {
     return null;
 }
 
+function MapClickRecorder({onClick}: { onClick: (latitude: number, longitude: number) => void }) {
+    useMapEvents({
+        click: (event) => onClick(event.latlng.lat, event.latlng.lng),
+    });
+    return null;
+}
+
 export default function LifeLogMap() {
     const [items, setItems] = useState<MapItem[]>([]);
+    const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
     const [truncated, setTruncated] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -87,6 +95,20 @@ export default function LifeLogMap() {
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'/>
                 <FitToItems items={items}/>
+                <MapClickRecorder onClick={(latitude, longitude) => setSelectedLocation({latitude, longitude})}/>
+                {selectedLocation && <Popup
+                    position={[selectedLocation.latitude, selectedLocation.longitude]}
+                    eventHandlers={{remove: () => setSelectedLocation(null)}}
+                    closeButton>
+                    <div className="max-w-60">
+                        <p>この地点に記録を登録できます。</p>
+                        <Link
+                            href={`/logs?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}`}
+                            className="mt-2 inline-block rounded bg-blue-600 px-3 py-1 !text-white">
+                            この場所に記録する
+                        </Link>
+                    </div>
+                </Popup>}
                 {items.map((item) => <Marker key={item.id} icon={lifeLogMarkerIcon}
                                              position={[item.location.latitude, item.location.longitude]}><Popup>
                     <div className="max-w-60">
