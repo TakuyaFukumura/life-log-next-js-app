@@ -18,7 +18,7 @@ describe('Home', () => {
         expect(await screen.findByText(/記録はまだありません/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '記録する'}));
         expect(screen.getByRole('dialog')).toBeInTheDocument();
-        expect(screen.getByLabelText('本文')).toBeInTheDocument();
+        expect(screen.getByLabelText('本文')).toHaveClass('dark:text-gray-100');
     });
 
     it('一覧を表示して削除確認を行う', async () => {
