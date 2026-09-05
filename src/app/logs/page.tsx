@@ -24,6 +24,7 @@ export default function Home() {
         location: null
     });
     const [availableTags, setAvailableTags] = useState<AvailableTag[]>([]);
+    const [tagToAdd, setTagToAdd] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -69,6 +70,7 @@ export default function Home() {
     const openCreate = () => {
         setEditingId(null);
         setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
+        setTagToAdd('');
         setIsModalOpen(true);
     };
 
@@ -81,6 +83,7 @@ export default function Home() {
             tagIds: item.tags.map((tag) => tag.id),
             location: item.location
         });
+        setTagToAdd('');
     };
 
     const submit = async (event: FormEvent) => {
@@ -105,6 +108,7 @@ export default function Home() {
         setIsModalOpen(false);
         setEditingId(null);
         setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
+        setTagToAdd('');
         await fetchItems(pagination.page);
     };
 
@@ -178,14 +182,28 @@ export default function Home() {
                                                           occurredAt: event.target.value
                                                       })}
                                                       className="mt-1 w-full rounded border p-2 text-black dark:text-gray-100 dark:[color-scheme:dark]"/></label><label
-                    className="mt-4 block">タグ<select aria-label="タグ" multiple value={form.tagIds}
-                                                       onChange={(event) => setForm({
-                                                           ...form,
-                                                           tagIds: Array.from(event.target.selectedOptions, (option) => option.value)
-                                                       })}
-                                                       className="mt-1 min-h-24 w-full rounded border p-2 text-black dark:text-gray-100">
-                        {availableTags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
-                    </select><span className="text-sm text-gray-500">複数選択できます（Ctrlまたは⌘を押しながら選択）</span></label><LocationPicker
+                    className="mt-4 block">タグ<div className="mt-1 flex gap-2"><select aria-label="タグ"
+                                                                                         value={tagToAdd}
+                                                                                         onChange={(event) => setTagToAdd(event.target.value)}
+                                                                                         className="w-full rounded border p-2 text-black dark:text-gray-100">
+                        <option value="">タグを選択</option>
+                        {availableTags.filter((tag) => !form.tagIds.includes(tag.id)).map((tag) => <option key={tag.id}
+                                                                                                             value={tag.id}>{tag.name}</option>)}
+                    </select><button type="button" disabled={!tagToAdd} onClick={() => {
+                        setForm({...form, tagIds: [...form.tagIds, tagToAdd]});
+                        setTagToAdd('');
+                    }} className="shrink-0 rounded border px-3 py-2 disabled:opacity-50">追加</button></div>
+                    {form.tagIds.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
+                        {form.tagIds.map((tagId) => {
+                            const tag = availableTags.find((availableTag) => availableTag.id === tagId);
+                            return tag ? <span key={tag.id} className="rounded bg-blue-100 px-2 py-1 text-sm text-blue-800">
+                                {tag.name}<button type="button" aria-label={`${tag.name}を外す`} onClick={() => setForm({
+                                    ...form,
+                                    tagIds: form.tagIds.filter((id) => id !== tag.id)
+                                })} className="ml-2 font-bold">×</button>
+                            </span> : null;
+                        })}
+                    </div>}</label><LocationPicker
                     location={form.location} onChange={(location) => setForm({...form, location})}/>
                     <div className="mt-6 flex justify-end gap-3">
                         <button type="button" onClick={() => setIsModalOpen(false)}
