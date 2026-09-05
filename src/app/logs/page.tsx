@@ -129,31 +129,31 @@ export default function Home() {
             <section className="mx-auto max-w-3xl rounded-2xl bg-white p-6 shadow-lg dark:bg-gray-800">
                 <div className="mb-6 flex items-center justify-between gap-4">
                     <div><h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">ライフログ</h1><p
-                        className="text-sm text-gray-500 dark:text-gray-300">日々の出来事を記録しましょう</p></div>
+                        className="text-sm text-gray-500">日々の出来事を記録しましょう</p></div>
                     <button type="button" onClick={openCreate}
                             className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">記録する
                     </button>
                 </div>
-                {notice && <p role="status" className="mb-4 rounded bg-green-50 p-3 text-green-700 dark:bg-green-900/40 dark:text-green-200">{notice}</p>}
-                {error && <div role="alert" className="mb-4 rounded bg-red-50 p-3 text-red-700 dark:bg-red-900/40 dark:text-red-200">{error}
+                {notice && <p role="status" className="mb-4 rounded bg-green-50 p-3 text-green-700">{notice}</p>}
+                {error && <div role="alert" className="mb-4 rounded bg-red-50 p-3 text-red-700">{error}
                     <button type="button" className="ml-3 underline"
                             onClick={() => void fetchItems(pagination.page)}>再試行
                     </button>
                 </div>}
                 {loading ? <p>読み込み中...</p> : items.length === 0 ? <div
-                        className="rounded border border-dashed p-8 text-center text-gray-500 dark:border-gray-600 dark:text-gray-300">記録はまだありません。「記録する」から始めましょう。</div> :
+                        className="rounded border border-dashed p-8 text-center text-gray-500">記録はまだありません。「記録する」から始めましょう。</div> :
                     <div className="space-y-4">{items.map((item) => <article key={item.id}
                                                                              className="rounded-xl border p-4 dark:border-gray-700">
                         <time
-                            className="text-sm text-gray-500 dark:text-gray-400">{new Date(item.occurredAt).toLocaleString('ja-JP')}</time>
+                            className="text-sm text-gray-500">{new Date(item.occurredAt).toLocaleString('ja-JP')}</time>
                         <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-100">{item.body}</p>{item.location &&
                         <p className="mt-2 text-sm text-green-700 dark:text-green-300">位置情報あり</p>}{item.tags.length > 0 &&
-                        <p className="mt-2 text-sm text-blue-600 dark:text-blue-300">{item.tags.map((tag) => `#${tag.name}`).join(' ')}</p>}
+                        <p className="mt-2 text-sm text-blue-600">{item.tags.map((tag) => `#${tag.name}`).join(' ')}</p>}
                         <div className="mt-3 flex gap-3 text-sm">
-                            <button type="button" className="text-blue-600 underline dark:text-blue-300"
+                            <button type="button" className="text-blue-600 underline"
                                     onClick={() => openEdit(item)}>編集
                             </button>
-                            <button type="button" className="text-red-600 underline dark:text-red-300"
+                            <button type="button" className="text-red-600 underline"
                                     onClick={() => void remove(item.id)}>削除
                             </button>
                         </div>
@@ -185,18 +185,18 @@ export default function Home() {
                     className="mt-4 block">タグ<div className="mt-1 flex gap-2"><select aria-label="タグ"
                                                                                          value={tagToAdd}
                                                                                          onChange={(event) => setTagToAdd(event.target.value)}
-                                                                                         className="w-full rounded border p-2 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:[color-scheme:dark]">
+                                                                                         className="w-full rounded border p-2 text-black dark:text-gray-100">
                         <option value="">タグを選択</option>
                         {availableTags.filter((tag) => !form.tagIds.includes(tag.id)).map((tag) => <option key={tag.id}
                                                                                                              value={tag.id}>{tag.name}</option>)}
                     </select><button type="button" disabled={!tagToAdd} onClick={() => {
                         setForm({...form, tagIds: [...form.tagIds, tagToAdd]});
                         setTagToAdd('');
-                    }} className="shrink-0 rounded border px-3 py-2 dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50">追加</button></div>
+                    }} className="shrink-0 rounded border px-3 py-2 disabled:opacity-50">追加</button></div>
                     {form.tagIds.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
                         {form.tagIds.map((tagId) => {
                             const tag = availableTags.find((availableTag) => availableTag.id === tagId);
-                            return tag ? <span key={tag.id} className="rounded bg-blue-100 px-2 py-1 text-sm text-blue-800 dark:bg-blue-900/60 dark:text-blue-200">
+                            return tag ? <span key={tag.id} className="rounded bg-blue-100 px-2 py-1 text-sm text-blue-800">
                                 {tag.name}<button type="button" aria-label={`${tag.name}を外す`} onClick={() => setForm({
                                     ...form,
                                     tagIds: form.tagIds.filter((id) => id !== tag.id)
