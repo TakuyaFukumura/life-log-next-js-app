@@ -104,7 +104,7 @@ export default function LifeLogMap() {
                         <p>この地点に記録を登録できます。</p>
                         <Link
                             href={`/logs?latitude=${selectedLocation.latitude}&longitude=${selectedLocation.longitude}`}
-                            className="mt-2 inline-block rounded bg-blue-600 px-3 py-1 text-white">
+                            className="mt-2 inline-block rounded bg-blue-600 px-3 py-1 !text-white">
                             この場所に記録する
                         </Link>
                     </div>
