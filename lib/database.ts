@@ -30,7 +30,11 @@ export function getDatabase(): Database.Database {
                 timezone TEXT NOT NULL DEFAULT 'Asia/Tokyo',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                deleted_at TEXT
+                deleted_at TEXT,
+                latitude REAL,
+                longitude REAL,
+                location_accuracy_meters REAL,
+                location_captured_at TEXT
             );
             CREATE TABLE IF NOT EXISTS tags (
                 id TEXT PRIMARY KEY NOT NULL,
@@ -55,6 +59,18 @@ export function getDatabase(): Database.Database {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         `);
+
+        const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as {name: string}[];
+        const existingColumns = new Set(columns.map((column) => column.name));
+        const migrations = [
+            ['latitude', 'REAL'],
+            ['longitude', 'REAL'],
+            ['location_accuracy_meters', 'REAL'],
+            ['location_captured_at', 'TEXT'],
+        ] as const;
+        for (const [name, type] of migrations) {
+            if (!existingColumns.has(name)) db.exec(`ALTER TABLE lifelogs ADD COLUMN ${name} ${type}`);
+        }
 
         // 初期データが存在しない場合は挿入
         const count = db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number };

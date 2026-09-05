@@ -7,6 +7,8 @@ import {normalizeOccurredAt, assertValidInput, ValidationError} from '../../src/
 type Row = {
     id: string; body: string; occurred_at: string; timezone: string;
     created_at: string; updated_at: string; deleted_at: string | null;
+    latitude: number | null; longitude: number | null;
+    location_accuracy_meters: number | null; location_captured_at: string | null;
 };
 type TagRow = {id: string; name: string; created_at: string; updated_at: string};
 
@@ -22,6 +24,9 @@ function toLifeLog(database: Database.Database, row: Row): LifeLog {
     return {
         id: row.id, body: row.body, occurredAt: row.occurred_at, timezone: 'Asia/Tokyo',
         tags: tags.map(tagFromRow), createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at,
+        location: row.latitude !== null && row.longitude !== null && row.location_captured_at !== null ? {
+            latitude: row.latitude, longitude: row.longitude, accuracyMeters: row.location_accuracy_meters, capturedAt: row.location_captured_at,
+        } : null,
     };
 }
 
@@ -73,7 +78,15 @@ export function createLifeLog(input: CreateLifeLogInput): LifeLog {
     const occurredAt = normalizeOccurredAt(input.occurredAt);
     const create = database.transaction(() => {
         const tagIds = resolveTags(database, input.tagIds, input.newTagNames, now);
-        database.prepare('INSERT INTO lifelogs (id, body, occurred_at, timezone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(id, input.body, occurredAt, 'Asia/Tokyo', now, now);
+        const location = input.location;
+        database.prepare(`INSERT INTO lifelogs (
+            id, body, occurred_at, timezone, created_at, updated_at,
+            latitude, longitude, location_accuracy_meters, location_captured_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+            id, input.body, occurredAt, 'Asia/Tokyo', now, now,
+            location?.latitude ?? null, location?.longitude ?? null,
+            location?.accuracyMeters ?? null, location?.capturedAt ?? null,
+        );
         const link = database.prepare('INSERT INTO lifelog_tags (lifelog_id, tag_id) VALUES (?, ?)');
         tagIds.forEach((tagId) => link.run(id, tagId));
     });
@@ -89,15 +102,53 @@ export function updateLifeLog(id: string, input: UpdateLifeLogInput): LifeLog | 
     const now = new Date().toISOString();
     database.transaction(() => {
         const occurredAt = input.occurredAt === undefined ? current.occurred_at : normalizeOccurredAt(input.occurredAt);
-        database.prepare('UPDATE lifelogs SET body = ?, occurred_at = ?, updated_at = ? WHERE id = ?').run(input.body ?? current.body, occurredAt, now, id);
+        const location = input.location;
+        const locationSql = location === undefined ? '' : ', latitude = ?, longitude = ?, location_accuracy_meters = ?, location_captured_at = ?';
+        const params: unknown[] = [input.body ?? current.body, occurredAt, now];
+        if (location !== undefined) {
+            params.push(location?.latitude ?? null, location?.longitude ?? null, location?.accuracyMeters ?? null, location?.capturedAt ?? null);
+        }
+        params.push(id);
+        database.prepare(`UPDATE lifelogs SET body = ?, occurred_at = ?, updated_at = ?${locationSql} WHERE id = ?`).run(...params);
         if (input.tagIds !== undefined || input.newTagNames !== undefined) {
             const tagIds = resolveTags(database, input.tagIds ?? [], input.newTagNames ?? [], now);
             database.prepare('DELETE FROM lifelog_tags WHERE lifelog_id = ?').run(id);
             const link = database.prepare('INSERT INTO lifelog_tags (lifelog_id, tag_id) VALUES (?, ?)');
             tagIds.forEach((tagId) => link.run(id, tagId));
         }
+
     })();
     return getLifeLog(id);
+}
+
+export type MapLifeLog = {
+    id: string;
+    occurredAt: string;
+    bodyPreview: string;
+    tags: Tag[];
+    location: Exclude<LifeLog['location'], null>;
+};
+
+export function listMapLifeLogs(tagId?: string): {items: MapLifeLog[]; truncated: boolean} {
+    const database = getDatabase();
+    const condition = tagId ? 'AND EXISTS (SELECT 1 FROM lifelog_tags filter_lt WHERE filter_lt.lifelog_id = l.id AND filter_lt.tag_id = @tagId)' : '';
+    const params = tagId ? {tagId} : {};
+    const rows = database.prepare(`
+        SELECT l.* FROM lifelogs l
+        WHERE l.deleted_at IS NULL AND l.latitude IS NOT NULL AND l.longitude IS NOT NULL
+          AND l.location_captured_at IS NOT NULL ${condition}
+        ORDER BY l.occurred_at DESC, l.id DESC
+        LIMIT 101
+    `).all(params) as Row[];
+    const truncated = rows.length > 100;
+    return {
+        truncated,
+        items: rows.slice(0, 100).map((row) => {
+            const item = toLifeLog(database, row);
+            if (!item.location) throw new Error('位置情報付き記録の変換に失敗しました');
+            return {id: item.id, occurredAt: item.occurredAt, bodyPreview: [...item.body].slice(0, 120).join(''), tags: item.tags, location: item.location};
+        }),
+    };
 }
 
 export function deleteLifeLog(id: string): boolean {

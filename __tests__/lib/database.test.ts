@@ -122,6 +122,15 @@ describe('Database Functions', () => {
             expect(tableInfo.find((col) => col.name === 'content')).toBeDefined();
             expect(tableInfo.find((col) => col.name === 'created_at')).toBeDefined();
         });
+
+        it('ライフログの位置情報カラムを作成する', async () => {
+            const {getDatabase} = await import('../../lib/database');
+            const db = getDatabase();
+            const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as {name: string}[];
+            expect(columns.map((column) => column.name)).toEqual(expect.arrayContaining([
+                'latitude', 'longitude', 'location_accuracy_meters', 'location_captured_at',
+            ]));
+        });
     });
 
     describe('getMessage', () => {
