@@ -57,8 +57,9 @@ describe('Header', () => {
             renderWithProvider();
 
             const links = screen.getAllByRole('link');
-            expect(links.map((link) => link.textContent)).toEqual(['life-log', '記録一覧']);
+            expect(links.map((link) => link.textContent)).toEqual(['life-log', '記録一覧', 'ゴミ箱']);
             expect(screen.getByRole('link', {name: '記録一覧'})).toHaveAttribute('href', '/logs');
+            expect(screen.getByRole('link', {name: 'ゴミ箱'})).toHaveAttribute('href', '/trash');
         });
 
         it('ヘッダーのHTML構造が正しい', () => {
