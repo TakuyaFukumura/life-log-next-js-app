@@ -20,6 +20,11 @@ export function GET(request: NextRequest) {
             return NextResponse.json({error: {code: error.code, message: error.message}}, {status: 400});
         }
         console.error('地図用ライフログの取得に失敗しました:', error);
-        return NextResponse.json({error: {code: 'INTERNAL_ERROR', message: '地図用ライフログの取得に失敗しました'}}, {status: 500});
+        return NextResponse.json({
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: '地図用ライフログの取得に失敗しました'
+            }
+        }, {status: 500});
     }
 }

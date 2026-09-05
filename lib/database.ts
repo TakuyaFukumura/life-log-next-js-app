@@ -60,7 +60,7 @@ export function getDatabase(): Database.Database {
             );
         `);
 
-        const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as {name: string}[];
+        const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as { name: string }[];
         const existingColumns = new Set(columns.map((column) => column.name));
         const migrations = [
             ['latitude', 'REAL'],

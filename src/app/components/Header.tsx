@@ -38,7 +38,8 @@ export default function Header() {
                         <Link href="/" className="text-xl font-semibold text-gray-800 dark:text-gray-200">
                             <h1>life-log</h1>
                         </Link>
-                        <Link href="/logs" className="ml-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">記録一覧</Link>
+                        <Link href="/logs"
+                              className="ml-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">記録一覧</Link>
                     </div>
 
                     <div className="flex items-center">
