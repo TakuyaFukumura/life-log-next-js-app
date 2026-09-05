@@ -185,7 +185,7 @@ export default function Home() {
                     className="mt-4 block">タグ<div className="mt-1 flex gap-2"><select aria-label="タグ"
                                                                                          value={tagToAdd}
                                                                                          onChange={(event) => setTagToAdd(event.target.value)}
-                                                                                         className="w-full rounded border p-2 text-black dark:bg-gray-700 dark:text-gray-100 dark:[color-scheme:dark]">
+                                                                                         className="w-full rounded border p-2 text-black dark:bg-gray-800 dark:text-gray-100 dark:[color-scheme:dark]">
                         <option value="">タグを選択</option>
                         {availableTags.filter((tag) => !form.tagIds.includes(tag.id)).map((tag) => <option key={tag.id}
                                                                                                              value={tag.id}>{tag.name}</option>)}
