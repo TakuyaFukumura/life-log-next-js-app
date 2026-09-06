@@ -17,7 +17,7 @@ jobs:
     # Node.jsのバージョン戦略
     strategy:
       matrix:
-        node-version: [ 26.x ]
+        node-version: [ 24.x ]
 
     steps:
       # 1. リポジトリのコードをチェックアウト
