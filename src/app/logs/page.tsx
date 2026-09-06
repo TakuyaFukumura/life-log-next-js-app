@@ -2,6 +2,7 @@
 
 import {ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState} from 'react';
 import type {ApiLifeLog, LifeLogLocationInput} from '../../domain/lifelog';
+import {formatJapanLocalDateTime, JAPAN_TIMEZONE, japanLocalDateTimeToIso} from '../../domain/datetime';
 import LocationPicker from '../components/LocationPicker';
 
 type Pagination = { page: number; pageSize: number; totalItems: number; totalPages: number };
@@ -9,18 +10,12 @@ type AvailableTag = { id: string; name: string };
 type FormState = { body: string; occurredAt: string; tagIds: string[]; location: LifeLogLocationInput };
 type PendingOperation = 'save' | 'delete' | 'import' | 'export' | null;
 
-const localDateTime = () => {
-    const date = new Date();
-    const offset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-};
-
 export default function Home() {
     const [items, setItems] = useState<ApiLifeLog[]>([]);
     const [pagination, setPagination] = useState<Pagination>({page: 1, pageSize: 20, totalItems: 0, totalPages: 0});
     const [form, setForm] = useState<FormState>({
         body: '',
-        occurredAt: localDateTime(),
+        occurredAt: formatJapanLocalDateTime(),
         tagIds: [],
         location: null
     });
@@ -60,7 +55,7 @@ export default function Home() {
         setEditingId(null);
         setForm({
             body: '',
-            occurredAt: localDateTime(),
+            occurredAt: formatJapanLocalDateTime(),
             tagIds: [],
             location: {latitude, longitude, accuracyMeters: null, capturedAt: new Date().toISOString()},
         });
@@ -117,7 +112,7 @@ export default function Home() {
 
     const openCreate = () => {
         setEditingId(null);
-        setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
+        setForm({body: '', occurredAt: formatJapanLocalDateTime(), tagIds: [], location: null});
         setTagToAdd('');
         setIsModalOpen(true);
     };
@@ -144,7 +139,7 @@ export default function Home() {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     body: form.body,
-                    occurredAt: new Date(form.occurredAt).toISOString(),
+                    occurredAt: japanLocalDateTimeToIso(form.occurredAt),
                     tagIds: form.tagIds,
                     location: form.location
                 }),
@@ -157,7 +152,7 @@ export default function Home() {
             setNotice(editingId ? '記録を更新しました' : '記録を登録しました');
             setIsModalOpen(false);
             setEditingId(null);
-            setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
+            setForm({body: '', occurredAt: formatJapanLocalDateTime(), tagIds: [], location: null});
             setTagToAdd('');
             await fetchItems(pagination.page);
         } catch (reason) {
@@ -276,7 +271,7 @@ export default function Home() {
                     <div className="space-y-4">{items.map((item) => <article key={item.id}
                                                                              className="rounded-xl border p-4 dark:border-gray-700">
                         <time
-                            className="text-sm text-gray-500">{new Date(item.occurredAt).toLocaleString('ja-JP')}</time>
+                            className="text-sm text-gray-500">{new Date(item.occurredAt).toLocaleString('ja-JP', {timeZone: JAPAN_TIMEZONE})}</time>
                         <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-100">{item.body}</p>{item.location &&
                         <p className="mt-2 text-sm text-green-700 dark:text-green-300">位置情報あり</p>}{item.tags.length > 0 &&
                         <p className="mt-2 text-sm text-blue-600">{item.tags.map((tag) => `#${tag.name}`).join(' ')}</p>}
@@ -309,7 +304,7 @@ export default function Home() {
                     className="block">本文<textarea required maxLength={1000} value={form.body}
                                                     onChange={(event) => setForm({...form, body: event.target.value})}
                                                     className="mt-1 min-h-32 w-full rounded border p-2 text-black dark:text-gray-100"/></label><label
-                    className="mt-4 block">日時<input required type="datetime-local" value={form.occurredAt}
+                    className="mt-4 block">日時（日本時間）<input required type="datetime-local" value={form.occurredAt}
                                                       onChange={(event) => setForm({
                                                           ...form,
                                                           occurredAt: event.target.value
