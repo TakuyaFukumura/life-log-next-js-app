@@ -5,7 +5,7 @@ Next.jsを使った個人向けライフログアプリケーションです。
 
 ## 技術スタック
 
-- **Next.js 16.3.3** - React フレームワーク（App Routerを使用）
+- **Next.js 16.3.4** - React フレームワーク（App Routerを使用）
 - **React 19.2.8** - ユーザーインターフェース構築
 - **TypeScript** - 型安全性
 - **Tailwind CSS 4** - スタイリング
@@ -133,7 +133,6 @@ pnpm start
 ├── data/                    # SQLiteデータベースファイル（自動生成）
 ├── package.json
 ├── next.config.ts
-├── tailwind.config.ts
 └── tsconfig.json
 ```
 
@@ -191,11 +190,6 @@ SQLiteデータベースは初回起動時に自動的に作成されます：
 タグの初期値はリポジトリ内の `config/tags.csv` から読み込まれます。CSVに追加したタグは、次回起動時に既存のタグを残したまま登録されます。
 
 ## カスタマイズ
-
-### メッセージの変更
-
-データベース内のメッセージを変更したい場合は、
-SQLiteクライアントを使用して `data/app.db` ファイル内の `messages` テーブルを編集してください。
 
 ### スタイルの変更
 
