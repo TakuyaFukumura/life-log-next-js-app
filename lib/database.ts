@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import {join} from 'path';
 import fs from 'fs';
+import {runMigrations} from './migrations';
 
 type TagSeedRow = { name: string };
 
@@ -44,51 +45,7 @@ export function getDatabase(): Database.Database {
         db = new Database(dbPath);
         db.pragma('foreign_keys = ON');
 
-        db.exec(`
-            CREATE TABLE IF NOT EXISTS lifelogs (
-                id TEXT PRIMARY KEY NOT NULL,
-                body TEXT NOT NULL,
-                occurred_at TEXT NOT NULL,
-                timezone TEXT NOT NULL DEFAULT 'Asia/Tokyo',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                deleted_at TEXT,
-                latitude REAL,
-                longitude REAL,
-                location_accuracy_meters REAL,
-                location_captured_at TEXT
-            );
-            CREATE TABLE IF NOT EXISTS tags (
-                id TEXT PRIMARY KEY NOT NULL,
-                name TEXT NOT NULL COLLATE NOCASE UNIQUE,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS lifelog_tags (
-                lifelog_id TEXT NOT NULL,
-                tag_id TEXT NOT NULL,
-                PRIMARY KEY (lifelog_id, tag_id),
-                FOREIGN KEY (lifelog_id) REFERENCES lifelogs(id) ON DELETE CASCADE,
-                FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-            );
-            CREATE INDEX IF NOT EXISTS idx_lifelogs_list
-                ON lifelogs (deleted_at, occurred_at DESC, id DESC);
-            CREATE INDEX IF NOT EXISTS idx_lifelogs_updated_at ON lifelogs (updated_at);
-            CREATE INDEX IF NOT EXISTS idx_lifelog_tags_tag_id ON lifelog_tags (tag_id, lifelog_id);
-        `);
-
-        const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as { name: string }[];
-        const existingColumns = new Set(columns.map((column) => column.name));
-        const migrations = [
-            ['latitude', 'REAL'],
-            ['longitude', 'REAL'],
-            ['location_accuracy_meters', 'REAL'],
-            ['location_captured_at', 'TEXT'],
-        ] as const;
-        for (const [name, type] of migrations) {
-            if (!existingColumns.has(name)) db.exec(`ALTER TABLE lifelogs ADD COLUMN ${name} ${type}`);
-        }
-
+        runMigrations(db);
         seedTagsFromCsv(db);
     }
 
