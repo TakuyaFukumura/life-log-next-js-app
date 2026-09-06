@@ -22,14 +22,10 @@ function tagFromRow(row: TagRow): Tag {
     return {id: row.id, name: row.name, createdAt: row.created_at, updatedAt: row.updated_at};
 }
 
-function toLifeLog(database: Database.Database, row: Row): LifeLog {
-    const tags = database.prepare(`
-        SELECT t.id, t.name, t.created_at, t.updated_at FROM tags t
-        JOIN lifelog_tags lt ON lt.tag_id = t.id WHERE lt.lifelog_id = ? ORDER BY t.name
-    `).all(row.id) as TagRow[];
+function toLifeLog(row: Row, tags: Tag[] = []): LifeLog {
     return {
         id: row.id, body: row.body, occurredAt: row.occurred_at, timezone: 'Asia/Tokyo',
-        tags: tags.map(tagFromRow), createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at,
+        tags, createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at,
         location: row.latitude !== null && row.longitude !== null && row.location_captured_at !== null ? {
             latitude: row.latitude,
             longitude: row.longitude,
@@ -37,6 +33,30 @@ function toLifeLog(database: Database.Database, row: Row): LifeLog {
             capturedAt: row.location_captured_at,
         } : null,
     };
+}
+
+function toLifeLogs(database: Database.Database, rows: Row[]): LifeLog[] {
+    if (rows.length === 0) return [];
+
+    const tagsByLifeLogId = new Map<string, Tag[]>();
+    for (let offset = 0; offset < rows.length; offset += 500) {
+        const chunk = rows.slice(offset, offset + 500);
+        const placeholders = chunk.map(() => '?').join(', ');
+        const tagRows = database.prepare(`
+            SELECT lt.lifelog_id, t.id, t.name, t.created_at, t.updated_at
+            FROM tags t
+            JOIN lifelog_tags lt ON lt.tag_id = t.id
+            WHERE lt.lifelog_id IN (${placeholders})
+            ORDER BY lt.lifelog_id, t.name
+        `).all(...chunk.map((row) => row.id)) as (TagRow & { lifelog_id: string })[];
+        for (const tagRow of tagRows) {
+            const tags = tagsByLifeLogId.get(tagRow.lifelog_id) ?? [];
+            tags.push(tagFromRow(tagRow));
+            tagsByLifeLogId.set(tagRow.lifelog_id, tags);
+        }
+    }
+
+    return rows.map((row) => toLifeLog(row, tagsByLifeLogId.get(row.id) ?? []));
 }
 
 function getRow(database: Database.Database, id: string, includeDeleted = false): Row | undefined {
@@ -74,7 +94,7 @@ export function listLifeLogs(page = 1, tagId?: string): { items: LifeLog[]; tota
         offset: (page - 1) * 20
     }) as Row[];
     return {
-        items: rows.map((row) => toLifeLog(database, row)),
+        items: toLifeLogs(database, rows),
         totalItems: total.count,
         totalPages: Math.ceil(total.count / 20)
     };
@@ -87,7 +107,7 @@ export function listAllLifeLogs(): LifeLog[] {
         WHERE deleted_at IS NULL
         ORDER BY occurred_at DESC, id DESC
     `).all() as Row[];
-    return rows.map((row) => toLifeLog(database, row));
+    return toLifeLogs(database, rows);
 }
 
 export function importLifeLogs(input: unknown): ImportLifeLogsResult {
@@ -143,7 +163,7 @@ export function importLifeLogs(input: unknown): ImportLifeLogsResult {
 export function getLifeLog(id: string, includeDeleted = false): LifeLog | undefined {
     const database = getDatabase();
     const row = getRow(database, id, includeDeleted);
-    return row ? toLifeLog(database, row) : undefined;
+    return row ? toLifeLogs(database, [row])[0] : undefined;
 }
 
 export function createLifeLog(input: CreateLifeLogInput): LifeLog {
@@ -227,10 +247,10 @@ export function listMapLifeLogs(options: { tagId?: string; from?: string; to?: s
         LIMIT 101
     `).all(params) as Row[];
     const truncated = rows.length > 100;
+    const items = toLifeLogs(database, rows.slice(0, 100));
     return {
         truncated,
-        items: rows.slice(0, 100).map((row) => {
-            const item = toLifeLog(database, row);
+        items: items.map((item) => {
             if (!item.location) throw new Error('位置情報付き記録の変換に失敗しました');
             return {
                 id: item.id,
@@ -255,7 +275,7 @@ export function listTrash(page = 1): { items: LifeLog[]; totalItems: number; tot
     };
     const rows = database.prepare('SELECT * FROM lifelogs WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC LIMIT 20 OFFSET ?').all((page - 1) * 20) as Row[];
     return {
-        items: rows.map((row) => toLifeLog(database, row)),
+        items: toLifeLogs(database, rows),
         totalItems: total.count,
         totalPages: Math.ceil(total.count / 20)
     };
