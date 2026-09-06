@@ -72,25 +72,6 @@ describe('Database Functions', () => {
             expect(db.open).toBe(true);
         });
 
-        it('messagesテーブルを作成する', async () => {
-            const {getDatabase} = await import('../../lib/database');
-            const db = getDatabase();
-
-            // テーブルの存在を確認
-            const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'").get();
-            expect(tableInfo).toBeDefined();
-            expect(tableInfo).toHaveProperty('name', 'messages');
-        });
-
-        it('初期データを挿入しない', async () => {
-            const {getDatabase} = await import('../../lib/database');
-            const db = getDatabase();
-
-            // 初期メッセージが存在しないことを確認
-            const count = db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number };
-            expect(count.count).toBe(0);
-        });
-
         it('CSVからタグの初期データを挿入する', async () => {
             const {getDatabase} = await import('../../lib/database');
             const db = getDatabase();
@@ -107,27 +88,6 @@ describe('Database Functions', () => {
             expect(db1).toBe(db2);
         });
 
-        it('データベーステーブルの構造を確認する', async () => {
-            const {getDatabase} = await import('../../lib/database');
-            const db = getDatabase();
-
-            // テーブル構造を確認
-            interface ColumnInfo {
-                name: string;
-                type: string;
-                notnull: number;
-                dflt_value: string | null;
-                pk: number;
-            }
-
-            const tableInfo = db.prepare("PRAGMA table_info(messages)").all() as ColumnInfo[];
-
-            expect(tableInfo).toHaveLength(3);
-            expect(tableInfo.find((col) => col.name === 'id')).toBeDefined();
-            expect(tableInfo.find((col) => col.name === 'content')).toBeDefined();
-            expect(tableInfo.find((col) => col.name === 'created_at')).toBeDefined();
-        });
-
         it('ライフログの位置情報カラムを作成する', async () => {
             const {getDatabase} = await import('../../lib/database');
             const db = getDatabase();
@@ -138,43 +98,7 @@ describe('Database Functions', () => {
         });
     });
 
-    describe('getMessage', () => {
-        it('メッセージが存在しない場合は空文字を返す', async () => {
-            const {getMessage} = await import('../../lib/database');
-
-            const message = getMessage();
-            expect(message).toBe('');
-        });
-    });
-
     describe('Database Integration', () => {
-        it('複数のメッセージから最新のものを取得する', async () => {
-            const {getDatabase, getMessage} = await import('../../lib/database');
-            const db = getDatabase();
-
-            // 複数のメッセージを追加（時間間隔を設けるため少し待機）
-            db.prepare('INSERT INTO messages (content) VALUES (?)').run('First message');
-
-            // SQLiteの精度の関係で、わずかに時間をずらす
-            const now = new Date().toISOString();
-            db.prepare('INSERT INTO messages (content, created_at) VALUES (?, ?)').run('Latest message', now);
-
-            const message = getMessage();
-            expect(message).toBe('Latest message');
-        });
-
-        it('作成日時が同じ場合はIDの大きいメッセージを取得する', async () => {
-            const {getDatabase, getMessage} = await import('../../lib/database');
-            const db = getDatabase();
-            const createdAt = '2026-09-02T00:00:00.000Z';
-
-            db.prepare('DELETE FROM messages').run();
-            db.prepare('INSERT INTO messages (content, created_at) VALUES (?, ?)').run('Earlier message', createdAt);
-            db.prepare('INSERT INTO messages (content, created_at) VALUES (?, ?)').run('Later message', createdAt);
-
-            expect(getMessage()).toBe('Later message');
-        });
-
         it('データベースファイルが存在することを確認する', async () => {
             const {getDatabase} = await import('../../lib/database');
             getDatabase();
@@ -182,28 +106,5 @@ describe('Database Functions', () => {
             expect(fs.existsSync(testDbPath)).toBe(true);
         });
 
-        it('データベースへの基本的なCRUD操作', async () => {
-            const {getDatabase} = await import('../../lib/database');
-            const db = getDatabase();
-
-            // Create: メッセージを追加
-            const insertResult = db.prepare('INSERT INTO messages (content) VALUES (?)').run('CRUD Test Message');
-            expect(insertResult.changes).toBe(1);
-
-            // Read: メッセージを読み取り
-            const readResult = db.prepare('SELECT content FROM messages WHERE content = ?').get('CRUD Test Message') as {
-                content: string
-            };
-            expect(readResult).toBeDefined();
-            expect(readResult.content).toBe('CRUD Test Message');
-
-            // Update: メッセージを更新
-            const updateResult = db.prepare('UPDATE messages SET content = ? WHERE content = ?').run('Updated CRUD Message', 'CRUD Test Message');
-            expect(updateResult.changes).toBe(1);
-
-            // Delete: メッセージを削除
-            const deleteResult = db.prepare('DELETE FROM messages WHERE content = ?').run('Updated CRUD Message');
-            expect(deleteResult.changes).toBe(1);
-        });
     });
 });

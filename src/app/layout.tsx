@@ -6,7 +6,7 @@ import React from "react";
 
 export const metadata: Metadata = {
     title: "life-log-next-js-app",
-    description: "SQLiteからメッセージを取得するシンプルなNext.jsアプリケーション",
+    description: "SQLiteでライフログを記録・管理するNext.jsアプリケーション",
 };
 
 export default function RootLayout({

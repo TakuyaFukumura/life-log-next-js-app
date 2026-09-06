@@ -75,11 +75,6 @@ export function getDatabase(): Database.Database {
                 ON lifelogs (deleted_at, occurred_at DESC, id DESC);
             CREATE INDEX IF NOT EXISTS idx_lifelogs_updated_at ON lifelogs (updated_at);
             CREATE INDEX IF NOT EXISTS idx_lifelog_tags_tag_id ON lifelog_tags (tag_id, lifelog_id);
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
         `);
 
         const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as { name: string }[];
@@ -98,15 +93,4 @@ export function getDatabase(): Database.Database {
     }
 
     return db;
-}
-
-/**
- * メッセージを取得する
- */
-export function getMessage(): string {
-    const database = getDatabase();
-    const result = database.prepare('SELECT content FROM messages ORDER BY created_at DESC, id DESC LIMIT 1').get() as {
-        content: string
-    } | undefined;
-    return result?.content || '';
 }
