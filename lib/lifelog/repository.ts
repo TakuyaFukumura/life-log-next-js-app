@@ -2,7 +2,7 @@ import {randomUUID} from 'crypto';
 import type Database from 'better-sqlite3';
 import {getDatabase} from '../database';
 import type {CreateLifeLogInput, LifeLog, Tag, UpdateLifeLogInput} from '../../src/domain/lifelog';
-import {assertValidInput, normalizeOccurredAt, ValidationError} from '../../src/domain/validation';
+import {assertValidInput, normalizeImportedLifeLog, normalizeOccurredAt, normalizeTagName, ValidationError} from '../../src/domain/validation';
 
 type Row = {
     id: string; body: string; occurred_at: string; timezone: string;
@@ -50,9 +50,7 @@ function resolveTags(database: Database.Database, tagIds: string[] = [], newTagN
     const insert = database.prepare('INSERT INTO tags (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)');
     const findName = database.prepare('SELECT id FROM tags WHERE name = ? COLLATE NOCASE');
     for (const rawName of newTagNames) {
-        const name = rawName.trim();
-        if (!name) throw new ValidationError('TAG_NAME_REQUIRED', 'タグ名を入力してください', {newTagNames: 'タグ名を入力してください'});
-        if ([...name].length > 30) throw new ValidationError('TAG_NAME_TOO_LONG', 'タグ名は30文字以内で入力してください', {newTagNames: 'タグ名は30文字以内で入力してください'});
+        const name = normalizeTagName(rawName);
         const existing = findName.get(name) as { id: string } | undefined;
         if (existing) ids.push(existing.id);
         else {
@@ -92,33 +90,6 @@ export function listAllLifeLogs(): LifeLog[] {
     return rows.map((row) => toLifeLog(database, row));
 }
 
-function isImportedLifeLog(value: unknown): value is Omit<LifeLog, 'deletedAt'> {
-    if (typeof value !== 'object' || value === null) return false;
-    const item = value as Partial<Omit<LifeLog, 'deletedAt'>>;
-    if (typeof item.id !== 'string' || item.id.length === 0 ||
-        typeof item.body !== 'string' || item.body.trim().length === 0 || [...item.body].length > 1000 ||
-        typeof item.occurredAt !== 'string' || Number.isNaN(Date.parse(item.occurredAt)) ||
-        item.timezone !== 'Asia/Tokyo' ||
-        typeof item.createdAt !== 'string' || Number.isNaN(Date.parse(item.createdAt)) ||
-        typeof item.updatedAt !== 'string' || Number.isNaN(Date.parse(item.updatedAt)) ||
-        !Array.isArray(item.tags)) return false;
-    if (item.tags.some((tag) => typeof tag !== 'object' || tag === null ||
-        typeof (tag as Partial<Tag>).id !== 'string' || (tag as Partial<Tag>).id!.length === 0 ||
-        typeof (tag as Partial<Tag>).name !== 'string' || (tag as Partial<Tag>).name!.trim().length === 0 ||
-        [...(tag as Partial<Tag>).name!].length > 30 ||
-        typeof (tag as Partial<Tag>).createdAt !== 'string' || Number.isNaN(Date.parse((tag as Partial<Tag>).createdAt!)) ||
-        typeof (tag as Partial<Tag>).updatedAt !== 'string' || Number.isNaN(Date.parse((tag as Partial<Tag>).updatedAt!)))) return false;
-    if (item.location !== null && item.location !== undefined) {
-        const location = item.location;
-        if (typeof location !== 'object' ||
-            typeof location.latitude !== 'number' || !Number.isFinite(location.latitude) || location.latitude < -90 || location.latitude > 90 ||
-            typeof location.longitude !== 'number' || !Number.isFinite(location.longitude) || location.longitude < -180 || location.longitude > 180 ||
-            (location.accuracyMeters !== null && (typeof location.accuracyMeters !== 'number' || !Number.isFinite(location.accuracyMeters) || location.accuracyMeters <= 0)) ||
-            typeof location.capturedAt !== 'string' || Number.isNaN(Date.parse(location.capturedAt))) return false;
-    }
-    return true;
-}
-
 export function importLifeLogs(input: unknown): ImportLifeLogsResult {
     if (!Array.isArray(input)) throw new ValidationError('INVALID_IMPORT_FORMAT', 'JSONは記録の配列である必要があります');
     const database = getDatabase();
@@ -137,31 +108,32 @@ export function importLifeLogs(input: unknown): ImportLifeLogsResult {
     const insertLink = database.prepare('INSERT INTO lifelog_tags (lifelog_id, tag_id) VALUES (?, ?)');
 
     for (const value of input) {
-        if (!isImportedLifeLog(value)) {
+        const item = normalizeImportedLifeLog(value);
+        if (!item) {
             invalid++;
             continue;
         }
-        if (seenIds.has(value.id) || findLifeLog.get(value.id)) {
+        if (seenIds.has(item.id) || findLifeLog.get(item.id)) {
             skipped++;
             continue;
         }
-        seenIds.add(value.id);
+        seenIds.add(item.id);
         database.transaction(() => {
-            const tagIds = value.tags.map((tag) => {
+            const tagIds = item.tags.map((tag) => {
                 const existingById = findTagById.get(tag.id) as { id: string } | undefined;
                 if (existingById) return existingById.id;
-                const existingByName = findTagByName.get(tag.name.trim()) as { id: string } | undefined;
+                const existingByName = findTagByName.get(tag.name) as { id: string } | undefined;
                 if (existingByName) return existingByName.id;
-                insertTag.run(tag.id, tag.name.trim(), tag.createdAt, tag.updatedAt);
+                insertTag.run(tag.id, tag.name, tag.createdAt, tag.updatedAt);
                 return tag.id;
             });
-            const location = value.location;
+            const location = item.location;
             insertLifeLog.run(
-                value.id, value.body, new Date(value.occurredAt).toISOString(), value.timezone,
-                value.createdAt, value.updatedAt, location?.latitude ?? null, location?.longitude ?? null,
+                item.id, item.body, item.occurredAt, item.timezone,
+                item.createdAt, item.updatedAt, location?.latitude ?? null, location?.longitude ?? null,
                 location?.accuracyMeters ?? null, location?.capturedAt ?? null,
             );
-            [...new Set(tagIds)].forEach((tagId) => insertLink.run(value.id, tagId));
+            [...new Set(tagIds)].forEach((tagId) => insertLink.run(item.id, tagId));
         })();
         imported++;
     }
