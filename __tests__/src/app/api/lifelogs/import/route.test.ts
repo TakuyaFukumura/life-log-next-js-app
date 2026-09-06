@@ -55,4 +55,46 @@ describe('POST /api/lifelogs/import', () => {
             error: {code: 'INVALID_JSON', message: 'JSONの形式が不正です'},
         });
     });
+
+    it('Content-Lengthが上限を超える場合に413を返す', async () => {
+        const response = await POST(new Request('http://localhost/api/lifelogs/import', {
+            method: 'POST',
+            body: JSON.stringify([]),
+            headers: {'Content-Type': 'application/json', 'Content-Length': String(5 * 1024 * 1024 + 1)},
+        }));
+
+        expect(response.status).toBe(413);
+        expect(await response.json()).toEqual({
+            error: {code: 'IMPORT_TOO_LARGE', message: 'インポートできるJSONは5MB以内です'},
+        });
+        expect(mockedImportLifeLogs).not.toHaveBeenCalled();
+    });
+
+    it('実測本文サイズが上限を超える場合に413を返す', async () => {
+        const response = await POST(new Request('http://localhost/api/lifelogs/import', {
+            method: 'POST',
+            body: `"${'a'.repeat(5 * 1024 * 1024)}"`,
+            headers: {'Content-Type': 'application/json'},
+        }));
+
+        expect(response.status).toBe(413);
+        expect(await response.json()).toEqual({
+            error: {code: 'IMPORT_TOO_LARGE', message: 'インポートできるJSONは5MB以内です'},
+        });
+        expect(mockedImportLifeLogs).not.toHaveBeenCalled();
+    });
+
+    it('レコード数が上限を超える場合に413を返す', async () => {
+        const response = await POST(new Request('http://localhost/api/lifelogs/import', {
+            method: 'POST',
+            body: JSON.stringify(Array.from({length: 1001}, () => null)),
+            headers: {'Content-Type': 'application/json'},
+        }));
+
+        expect(response.status).toBe(413);
+        expect(await response.json()).toEqual({
+            error: {code: 'IMPORT_TOO_MANY_RECORDS', message: '一度にインポートできる記録は1,000件以内です'},
+        });
+        expect(mockedImportLifeLogs).not.toHaveBeenCalled();
+    });
 });
