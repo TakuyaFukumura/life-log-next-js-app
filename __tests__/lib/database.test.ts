@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import Database from 'better-sqlite3';
 
 // テスト専用のデータディレクトリ・DBパス
 const testDataDir = path.join(__dirname, 'test-data');
@@ -92,6 +93,42 @@ describe('Database Functions', () => {
             const {getDatabase} = await import('../../lib/database');
             const db = getDatabase();
             const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as { name: string }[];
+            expect(columns.map((column) => column.name)).toEqual(expect.arrayContaining([
+                'latitude', 'longitude', 'location_accuracy_meters', 'location_captured_at',
+            ]));
+            const migrations = db.prepare('SELECT version FROM schema_migrations ORDER BY version').all() as {version: number}[];
+            expect(migrations.map((migration) => migration.version)).toEqual([1, 2]);
+        });
+
+        it('既存データベースに未適用のマイグレーションを適用する', async () => {
+            const legacyDatabase = new Database(testDbPath);
+            legacyDatabase.exec(`
+                CREATE TABLE lifelogs (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    body TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL,
+                    timezone TEXT NOT NULL DEFAULT 'Asia/Tokyo',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT
+                );
+                CREATE TABLE tags (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE lifelog_tags (
+                    lifelog_id TEXT NOT NULL,
+                    tag_id TEXT NOT NULL,
+                    PRIMARY KEY (lifelog_id, tag_id)
+                );
+            `);
+            legacyDatabase.close();
+
+            const {getDatabase} = await import('../../lib/database');
+            const db = getDatabase();
+            const columns = db.prepare('PRAGMA table_info(lifelogs)').all() as {name: string}[];
             expect(columns.map((column) => column.name)).toEqual(expect.arrayContaining([
                 'latitude', 'longitude', 'location_accuracy_meters', 'location_captured_at',
             ]));
