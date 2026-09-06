@@ -1,12 +1,13 @@
 'use client';
 
-import {ChangeEvent, FormEvent, useCallback, useEffect, useState} from 'react';
+import {ChangeEvent, FormEvent, useCallback, useEffect, useRef, useState} from 'react';
 import type {ApiLifeLog, LifeLogLocationInput} from '../../domain/lifelog';
 import LocationPicker from '../components/LocationPicker';
 
 type Pagination = { page: number; pageSize: number; totalItems: number; totalPages: number };
 type AvailableTag = { id: string; name: string };
 type FormState = { body: string; occurredAt: string; tagIds: string[]; location: LifeLogLocationInput };
+type PendingOperation = 'save' | 'delete' | 'import' | 'export' | null;
 
 const localDateTime = () => {
     const date = new Date();
@@ -28,8 +29,24 @@ export default function Home() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [pendingOperation, setPendingOperation] = useState<PendingOperation>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
+    const fetchRequestId = useRef(0);
+    const fetchController = useRef<AbortController | null>(null);
+    const pendingOperationRef = useRef<PendingOperation>(null);
+
+    const beginOperation = (operation: Exclude<PendingOperation, null>) => {
+        if (pendingOperationRef.current) return false;
+        pendingOperationRef.current = operation;
+        setPendingOperation(operation);
+        return true;
+    };
+
+    const endOperation = () => {
+        pendingOperationRef.current = null;
+        setPendingOperation(null);
+    };
 
     useEffect(() => {
         const searchParams = new URLSearchParams(window.location.search);
@@ -52,22 +69,33 @@ export default function Home() {
     }, []);
 
     const fetchItems = useCallback(async (page = 1) => {
+        fetchController.current?.abort();
+        const requestId = ++fetchRequestId.current;
+        const controller = new AbortController();
+        fetchController.current = controller;
         setLoading(true);
         try {
-            const response = await fetch(`/api/lifelogs?page=${page}`);
+            const response = await fetch(`/api/lifelogs?page=${page}`, {signal: controller.signal});
             const data = await response.json() as {
                 items?: ApiLifeLog[];
                 pagination?: Pagination;
                 error?: { message: string }
             };
             if (!response.ok) throw new Error(`エラー: ${data.error?.message ?? '記録の取得に失敗しました'}`);
+            if (requestId !== fetchRequestId.current) return;
             setItems(data.items ?? []);
             if (data.pagination) setPagination(data.pagination);
             setError(null);
         } catch (reason) {
-            setError(reason instanceof Error ? reason.message : '記録の取得に失敗しました');
+            if (reason instanceof DOMException && reason.name === 'AbortError') return;
+            if (requestId === fetchRequestId.current) {
+                setError(reason instanceof Error ? reason.message : '記録の取得に失敗しました');
+            }
         } finally {
-            setLoading(false);
+            if (requestId === fetchRequestId.current) {
+                setLoading(false);
+                fetchController.current = null;
+            }
         }
     }, []);
 
@@ -108,42 +136,57 @@ export default function Home() {
 
     const submit = async (event: FormEvent) => {
         event.preventDefault();
+        if (!beginOperation('save')) return;
         const endpoint = editingId ? `/api/lifelogs/${editingId}` : '/api/lifelogs';
-        const response = await fetch(endpoint, {
-            method: editingId ? 'PATCH' : 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                body: form.body,
-                occurredAt: new Date(form.occurredAt).toISOString(),
-                tagIds: form.tagIds,
-                location: form.location
-            }),
-        });
-        const data = await response.json() as { error?: { message: string } };
-        if (!response.ok) {
-            setError(data.error?.message ?? '保存に失敗しました');
-            return;
+        try {
+            const response = await fetch(endpoint, {
+                method: editingId ? 'PATCH' : 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    body: form.body,
+                    occurredAt: new Date(form.occurredAt).toISOString(),
+                    tagIds: form.tagIds,
+                    location: form.location
+                }),
+            });
+            const data = await response.json() as { error?: { message: string } };
+            if (!response.ok) {
+                setError(data.error?.message ?? '保存に失敗しました');
+                return;
+            }
+            setNotice(editingId ? '記録を更新しました' : '記録を登録しました');
+            setIsModalOpen(false);
+            setEditingId(null);
+            setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
+            setTagToAdd('');
+            await fetchItems(pagination.page);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : '保存に失敗しました');
+        } finally {
+            endOperation();
         }
-        setNotice(editingId ? '記録を更新しました' : '記録を登録しました');
-        setIsModalOpen(false);
-        setEditingId(null);
-        setForm({body: '', occurredAt: localDateTime(), tagIds: [], location: null});
-        setTagToAdd('');
-        await fetchItems(pagination.page);
     };
 
     const remove = async (id: string) => {
         if (!window.confirm('この記録をゴミ箱へ移動しますか？')) return;
-        const response = await fetch(`/api/lifelogs/${id}`, {method: 'DELETE'});
-        if (!response.ok) {
-            setError('記録の削除に失敗しました');
-            return;
+        if (!beginOperation('delete')) return;
+        try {
+            const response = await fetch(`/api/lifelogs/${id}`, {method: 'DELETE'});
+            if (!response.ok) {
+                setError('記録の削除に失敗しました');
+                return;
+            }
+            setNotice('記録をゴミ箱へ移動しました');
+            await fetchItems(pagination.page);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : '記録の削除に失敗しました');
+        } finally {
+            endOperation();
         }
-        setNotice('記録をゴミ箱へ移動しました');
-        await fetchItems(pagination.page);
     };
 
     const exportJson = async () => {
+        if (!beginOperation('export')) return;
         try {
             const response = await fetch('/api/lifelogs/export');
             if (!response.ok) {
@@ -161,6 +204,8 @@ export default function Home() {
             setError(null);
         } catch (reason) {
             setError(reason instanceof Error ? reason.message : 'JSON出力に失敗しました');
+        } finally {
+            endOperation();
         }
     };
 
@@ -168,6 +213,7 @@ export default function Home() {
         const file = event.target.files?.[0];
         event.target.value = '';
         if (!file) return;
+        if (!beginOperation('import')) return;
         try {
             const content = await file.text();
             const response = await fetch('/api/lifelogs/import', {
@@ -190,6 +236,8 @@ export default function Home() {
             if (tagsResponse.ok) setAvailableTags(tagsData.items ?? []);
         } catch (reason) {
             setError(reason instanceof Error ? reason.message : 'JSONインポートに失敗しました');
+        } finally {
+            endOperation();
         }
     };
 
@@ -202,16 +250,18 @@ export default function Home() {
                         className="text-sm text-gray-500">日々の出来事を記録しましょう</p></div>
                     <div className="flex gap-2">
                         <label
-                            className="cursor-pointer rounded-lg border px-4 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">
+                            className={`rounded-lg border px-4 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 ${pendingOperation ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                             JSONをインポート
-                            <input type="file" accept="application/json,.json" onChange={(event) => void importJson(event)}
+                            <input type="file" accept="application/json,.json" disabled={Boolean(pendingOperation)} onChange={(event) => void importJson(event)}
                                    className="sr-only"/>
                         </label>
                         <button type="button" onClick={() => void exportJson()}
-                                className="rounded-lg border px-4 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-gray-700">JSONをダウンロード
+                                disabled={Boolean(pendingOperation)}
+                                className="rounded-lg border px-4 py-2 font-semibold hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50">JSONをダウンロード
                         </button>
                         <button type="button" onClick={openCreate}
-                                className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">記録する
+                                disabled={Boolean(pendingOperation)}
+                                className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">記録する
                         </button>
                     </div>
                 </div>
@@ -232,9 +282,11 @@ export default function Home() {
                         <p className="mt-2 text-sm text-blue-600">{item.tags.map((tag) => `#${tag.name}`).join(' ')}</p>}
                         <div className="mt-3 flex gap-3 text-sm">
                             <button type="button" className="text-blue-600 underline"
+                                    disabled={Boolean(pendingOperation)}
                                     onClick={() => openEdit(item)}>編集
                             </button>
                             <button type="button" className="text-red-600 underline"
+                                    disabled={Boolean(pendingOperation)}
                                     onClick={() => void remove(item.id)}>削除
                             </button>
                         </div>
@@ -288,9 +340,11 @@ export default function Home() {
                     location={form.location} onChange={(location) => setForm({...form, location})}/>
                     <div className="mt-6 flex justify-end gap-3">
                         <button type="button" onClick={() => setIsModalOpen(false)}
+                                disabled={Boolean(pendingOperation)}
                                 className="rounded border px-4 py-2">キャンセル
                         </button>
-                        <button type="submit" className="rounded bg-blue-600 px-4 py-2 text-white">保存</button>
+                        <button type="submit" disabled={Boolean(pendingOperation)}
+                                className="rounded bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50">保存</button>
                     </div>
                 </form>
             </div>}

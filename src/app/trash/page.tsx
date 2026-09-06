@@ -1,34 +1,62 @@
 'use client';
 
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import type {LifeLog} from '../../domain/lifelog';
 
 type Pagination = { page: number; pageSize: number; totalItems: number; totalPages: number };
+type PendingOperation = 'restore' | 'permanent-delete' | 'empty-trash' | null;
 
 export default function TrashPage() {
     const [items, setItems] = useState<LifeLog[]>([]);
     const [pagination, setPagination] = useState<Pagination>({page: 1, pageSize: 20, totalItems: 0, totalPages: 0});
     const [loading, setLoading] = useState(true);
+    const [pendingOperation, setPendingOperation] = useState<PendingOperation>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
+    const fetchRequestId = useRef(0);
+    const fetchController = useRef<AbortController | null>(null);
+    const pendingOperationRef = useRef<PendingOperation>(null);
+
+    const beginOperation = (operation: Exclude<PendingOperation, null>) => {
+        if (pendingOperationRef.current) return false;
+        pendingOperationRef.current = operation;
+        setPendingOperation(operation);
+        return true;
+    };
+
+    const endOperation = () => {
+        pendingOperationRef.current = null;
+        setPendingOperation(null);
+    };
 
     const fetchItems = useCallback(async (page = 1) => {
+        fetchController.current?.abort();
+        const requestId = ++fetchRequestId.current;
+        const controller = new AbortController();
+        fetchController.current = controller;
         setLoading(true);
         try {
-            const response = await fetch(`/api/trash?page=${page}`);
+            const response = await fetch(`/api/trash?page=${page}`, {signal: controller.signal});
             const data = await response.json() as {
                 items?: LifeLog[];
                 pagination?: Pagination;
                 error?: { message: string };
             };
             if (!response.ok) throw new Error(data.error?.message ?? 'ゴミ箱の取得に失敗しました');
+            if (requestId !== fetchRequestId.current) return;
             setItems(data.items ?? []);
             if (data.pagination) setPagination(data.pagination);
             setError(null);
         } catch (reason) {
-            setError(reason instanceof Error ? reason.message : 'ゴミ箱の取得に失敗しました');
+            if (reason instanceof DOMException && reason.name === 'AbortError') return;
+            if (requestId === fetchRequestId.current) {
+                setError(reason instanceof Error ? reason.message : 'ゴミ箱の取得に失敗しました');
+            }
         } finally {
-            setLoading(false);
+            if (requestId === fetchRequestId.current) {
+                setLoading(false);
+                fetchController.current = null;
+            }
         }
     }, []);
 
@@ -39,35 +67,56 @@ export default function TrashPage() {
     }, [fetchItems]);
 
     const restore = async (id: string) => {
-        const response = await fetch(`/api/trash/${id}/restore`, {method: 'POST'});
-        if (!response.ok) {
-            setError('記録の復元に失敗しました');
-            return;
+        if (!beginOperation('restore')) return;
+        try {
+            const response = await fetch(`/api/trash/${id}/restore`, {method: 'POST'});
+            if (!response.ok) {
+                setError('記録の復元に失敗しました');
+                return;
+            }
+            setNotice('記録を復元しました');
+            await fetchItems(pagination.page);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : '記録の復元に失敗しました');
+        } finally {
+            endOperation();
         }
-        setNotice('記録を復元しました');
-        await fetchItems(pagination.page);
     };
 
     const permanentlyDelete = async (id: string) => {
         if (!window.confirm('この記録を完全に削除しますか？復元できなくなります。')) return;
-        const response = await fetch(`/api/trash/${id}`, {method: 'DELETE'});
-        if (!response.ok) {
-            setError('記録の完全削除に失敗しました');
-            return;
+        if (!beginOperation('permanent-delete')) return;
+        try {
+            const response = await fetch(`/api/trash/${id}`, {method: 'DELETE'});
+            if (!response.ok) {
+                setError('記録の完全削除に失敗しました');
+                return;
+            }
+            setNotice('記録を完全に削除しました');
+            await fetchItems(pagination.page);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : '記録の完全削除に失敗しました');
+        } finally {
+            endOperation();
         }
-        setNotice('記録を完全に削除しました');
-        await fetchItems(pagination.page);
     };
 
     const emptyTrash = async () => {
         if (!window.confirm('ゴミ箱内の記録をすべて完全に削除しますか？復元できなくなります。')) return;
-        const response = await fetch('/api/trash', {method: 'DELETE'});
-        if (!response.ok) {
-            setError('ゴミ箱を空にできませんでした');
-            return;
+        if (!beginOperation('empty-trash')) return;
+        try {
+            const response = await fetch('/api/trash', {method: 'DELETE'});
+            if (!response.ok) {
+                setError('ゴミ箱を空にできませんでした');
+                return;
+            }
+            setNotice('ゴミ箱を空にしました');
+            await fetchItems(1);
+        } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'ゴミ箱を空にできませんでした');
+        } finally {
+            endOperation();
         }
-        setNotice('ゴミ箱を空にしました');
-        await fetchItems(1);
     };
 
     return (
@@ -78,7 +127,7 @@ export default function TrashPage() {
                         <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">ゴミ箱</h1>
                         <p className="text-sm text-gray-500">削除した記録はここから復元または完全削除できます。</p>
                     </div>
-                    <button type="button" disabled={pagination.totalItems === 0} onClick={() => void emptyTrash()}
+                    <button type="button" disabled={pagination.totalItems === 0 || Boolean(pendingOperation)} onClick={() => void emptyTrash()}
                             className="rounded-lg border border-red-200 px-4 py-2 font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">
                         ゴミ箱を空にする
                     </button>
@@ -93,8 +142,8 @@ export default function TrashPage() {
                         <p className="mt-2 whitespace-pre-wrap text-gray-800 dark:text-gray-100">{item.body}</p>
                         <p className="mt-2 text-sm text-gray-500">削除日時: {item.deletedAt ? new Date(item.deletedAt).toLocaleString('ja-JP') : '不明'}</p>
                         <div className="mt-3 flex gap-3 text-sm">
-                            <button type="button" className="text-blue-600 underline" onClick={() => void restore(item.id)}>復元</button>
-                            <button type="button" className="text-red-600 underline" onClick={() => void permanentlyDelete(item.id)}>完全削除</button>
+                            <button type="button" disabled={Boolean(pendingOperation)} className="text-blue-600 underline disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void restore(item.id)}>復元</button>
+                                    <button type="button" disabled={Boolean(pendingOperation)} className="text-red-600 underline disabled:cursor-not-allowed disabled:opacity-50" onClick={() => void permanentlyDelete(item.id)}>完全削除</button>
                         </div>
                     </article>)}</div>}
                 {pagination.totalPages > 1 && <nav aria-label="ページ送り" className="mt-6 flex justify-center gap-4">
