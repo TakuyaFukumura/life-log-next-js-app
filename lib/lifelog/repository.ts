@@ -3,6 +3,12 @@ import type Database from 'better-sqlite3';
 import {getDatabase} from '../database';
 import type {CreateLifeLogInput, LifeLog, Tag, UpdateLifeLogInput} from '../../src/domain/lifelog';
 import {assertValidInput, normalizeImportedLifeLog, normalizeOccurredAt, normalizeTagName, ValidationError} from '../../src/domain/validation';
+import {
+    IMPORT_TIMEOUT_MS,
+    MAX_IMPORT_RECORDS,
+    MAX_IMPORT_TAGS,
+    MAX_IMPORT_TAGS_PER_RECORD,
+} from '../../src/domain/import-limits';
 
 type Row = {
     id: string; body: string; occurred_at: string; timezone: string;
@@ -112,6 +118,28 @@ export function listAllLifeLogs(): LifeLog[] {
 
 export function importLifeLogs(input: unknown): ImportLifeLogsResult {
     if (!Array.isArray(input)) throw new ValidationError('INVALID_IMPORT_FORMAT', 'JSONは記録の配列である必要があります');
+    if (input.length > MAX_IMPORT_RECORDS) {
+        throw new ValidationError('IMPORT_TOO_MANY_RECORDS', '一度にインポートできる記録は1,000件以内です');
+    }
+
+    const deadline = Date.now() + IMPORT_TIMEOUT_MS;
+    const normalizedItems: ReturnType<typeof normalizeImportedLifeLog>[] = [];
+    let tagCount = 0;
+    for (const value of input) {
+        if (Date.now() > deadline) throw new ValidationError('IMPORT_TIMEOUT', 'インポート処理がタイムアウトしました');
+        const item = normalizeImportedLifeLog(value);
+        if (item) {
+            if (item.tags.length > MAX_IMPORT_TAGS_PER_RECORD) {
+                throw new ValidationError('IMPORT_TOO_MANY_TAGS', '1件あたりのタグは50件以内です');
+            }
+            tagCount += item.tags.length;
+            if (tagCount > MAX_IMPORT_TAGS) {
+                throw new ValidationError('IMPORT_TOO_MANY_TAGS', 'インポートできるタグは合計10,000件以内です');
+            }
+        }
+        normalizedItems.push(item);
+    }
+
     const database = getDatabase();
     const seenIds = new Set<string>();
     let imported = 0;
@@ -127,18 +155,18 @@ export function importLifeLogs(input: unknown): ImportLifeLogsResult {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const insertLink = database.prepare('INSERT INTO lifelog_tags (lifelog_id, tag_id) VALUES (?, ?)');
 
-    for (const value of input) {
-        const item = normalizeImportedLifeLog(value);
-        if (!item) {
-            invalid++;
-            continue;
-        }
-        if (seenIds.has(item.id) || findLifeLog.get(item.id)) {
-            skipped++;
-            continue;
-        }
-        seenIds.add(item.id);
-        database.transaction(() => {
+    database.transaction(() => {
+        for (const item of normalizedItems) {
+            if (Date.now() > deadline) throw new ValidationError('IMPORT_TIMEOUT', 'インポート処理がタイムアウトしました');
+            if (!item) {
+                invalid++;
+                continue;
+            }
+            if (seenIds.has(item.id) || findLifeLog.get(item.id)) {
+                skipped++;
+                continue;
+            }
+            seenIds.add(item.id);
             const tagIds = item.tags.map((tag) => {
                 const existingById = findTagById.get(tag.id) as { id: string } | undefined;
                 if (existingById) return existingById.id;
@@ -154,9 +182,9 @@ export function importLifeLogs(input: unknown): ImportLifeLogsResult {
                 location?.accuracyMeters ?? null, location?.capturedAt ?? null,
             );
             [...new Set(tagIds)].forEach((tagId) => insertLink.run(item.id, tagId));
-        })();
-        imported++;
-    }
+            imported++;
+        }
+    })();
     return {imported, skipped, invalid};
 }
 
