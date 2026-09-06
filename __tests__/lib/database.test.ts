@@ -82,16 +82,13 @@ describe('Database Functions', () => {
             expect(tableInfo).toHaveProperty('name', 'messages');
         });
 
-        it('初期データを挿入する', async () => {
+        it('初期データを挿入しない', async () => {
             const {getDatabase} = await import('../../lib/database');
             const db = getDatabase();
 
-            // 初期データの存在を確認
+            // 初期メッセージが存在しないことを確認
             const count = db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number };
-            expect(count.count).toBe(1);
-
-            const message = db.prepare('SELECT content FROM messages').get() as { content: string };
-            expect(message.content).toBe('Hello, world.');
+            expect(count.count).toBe(0);
         });
 
         it('CSVからタグの初期データを挿入する', async () => {
@@ -142,22 +139,11 @@ describe('Database Functions', () => {
     });
 
     describe('getMessage', () => {
-        it('デフォルトメッセージを取得する', async () => {
+        it('メッセージが存在しない場合は空文字を返す', async () => {
             const {getMessage} = await import('../../lib/database');
 
             const message = getMessage();
-            expect(message).toBe('Hello, world.');
-        });
-
-        it('メッセージが存在しない場合はデフォルトメッセージを返す', async () => {
-            const {getDatabase, getMessage} = await import('../../lib/database');
-            const db = getDatabase();
-
-            // 全てのメッセージを削除
-            db.prepare('DELETE FROM messages').run();
-
-            const message = getMessage();
-            expect(message).toBe('Hello, world.');
+            expect(message).toBe('');
         });
     });
 

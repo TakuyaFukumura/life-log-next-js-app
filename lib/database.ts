@@ -94,11 +94,6 @@ export function getDatabase(): Database.Database {
             if (!existingColumns.has(name)) db.exec(`ALTER TABLE lifelogs ADD COLUMN ${name} ${type}`);
         }
 
-        // 初期データが存在しない場合は挿入
-        const count = db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number };
-        if (count.count === 0) {
-            db.prepare('INSERT INTO messages (content) VALUES (?)').run('Hello, world.');
-        }
         seedTagsFromCsv(db);
     }
 
@@ -113,5 +108,5 @@ export function getMessage(): string {
     const result = database.prepare('SELECT content FROM messages ORDER BY created_at DESC, id DESC LIMIT 1').get() as {
         content: string
     } | undefined;
-    return result?.content || 'Hello, world.';
+    return result?.content || '';
 }
