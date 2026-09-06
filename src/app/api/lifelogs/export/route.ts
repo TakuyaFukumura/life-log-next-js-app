@@ -1,5 +1,6 @@
 import {NextResponse} from 'next/server';
 import {listAllLifeLogs} from '@/../lib/lifelog/repository';
+import {errorResponse} from '@/lib/api';
 
 export function GET() {
     try {
@@ -13,12 +14,6 @@ export function GET() {
             },
         });
     } catch (error) {
-        console.error('ライフログのエクスポートに失敗しました:', error);
-        return NextResponse.json({
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'ライフログのエクスポートに失敗しました'
-            }
-        }, {status: 500});
+        return errorResponse(error, 'ライフログのエクスポートに失敗しました');
     }
 }
