@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@types/better-sqlite3": "^9.6.0",
-    "better-sqlite3": "^13.1.1",
+    "better-sqlite3": "^13.2.0",
     "leaflet": "^1.9.4",
     "next": "16.4.6",
     "react": "19.3.1",
